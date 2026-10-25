@@ -48,6 +48,11 @@ function sortMetas(metas: EntryMeta[]): EntryMeta[] {
   return [...metas].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 }
 
+async function toggleFullscreen() {
+  const win = getCurrentWindow();
+  await win.setFullscreen(!(await win.isFullscreen()));
+}
+
 function metaOf(e: Entry): EntryMeta {
   const { body, ...rest } = e;
   return { ...rest, excerpt: "", wordCount: body.split(/\s+/).filter(Boolean).length };
@@ -65,6 +70,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   const [entry, setEntry] = useState<Entry | null>(null);
   const [showSettings, setShowSettings] = useState<SettingsTab | false>(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   /** Saves the open editor (and drops it if left empty). Set by the Editor. */
   const flushRef = useRef<(() => Promise<void>) | null>(null);
@@ -362,15 +368,29 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   }, [flush]);
 
   // Global shortcuts.
+  const modalOpen = showSettings !== false;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F11") {
+        e.preventDefault();
+        void toggleFullscreen();
+        return;
+      }
+      if (e.key === "Escape" && focusMode && !modalOpen) {
+        setFocusMode(false);
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
-      if (key === "n") {
+      if (key === "f" && e.shiftKey) {
+        e.preventDefault();
+        setFocusMode((on) => !on);
+      } else if (key === "n") {
         e.preventDefault();
         newEntry();
-      } else if (key === "f" && !e.shiftKey) {
+      } else if (key === "f") {
         e.preventDefault();
+        setFocusMode(false);
         void openSection("entries").then(() => searchRef.current?.focus());
       } else if (key === "l") {
         e.preventDefault();
@@ -382,7 +402,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [newEntry, lock, openSection]);
+  }, [newEntry, lock, openSection, focusMode, modalOpen]);
 
   const allTags = useMemo(() => {
     const counts = new Map<string, number>();
@@ -391,6 +411,11 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   }, [metas]);
 
   const inTrash = section === "trash";
+  const editing = section === "entries" && !!entry && entry.id === selectedId;
+  const focus = focusMode && editing;
+  useEffect(() => {
+    if (!editing) setFocusMode(false);
+  }, [editing]);
 
   const pickDay = (day: string) => {
     setFilters({ ...NO_FILTERS, day });
@@ -443,40 +468,44 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   }
 
   return (
-    <div className="journal">
-      <Sidebar
-        username={username}
-        metas={metas}
-        trashCount={trash.length}
-        section={section}
-        tags={allTags}
-        filters={filters}
-        onFilters={(f) => {
-          void openSection("entries");
-          setFilters(f);
-        }}
-        onSection={openSection}
-        onSelect={(id) => void openSection("entries").then(() => select(id))}
-        onNew={newEntry}
-        onLock={lock}
-        onSettings={() => setShowSettings("appearance")}
-        templates={templatesOf(settings, t)}
-        defaultTemplateId={settings.defaultTemplateId}
-        onManageTemplates={() => setShowSettings("templates")}
-      />
-      <EntryList
-        section={section}
-        entries={inTrash ? trash : visible}
-        total={inTrash ? trash.length : metas.length}
-        selectedId={inTrash ? trashSelectedId : selectedId}
-        filters={filters}
-        searchRef={searchRef}
-        onQuery={(query) => setFilters((f) => ({ ...f, query }))}
-        onClearFilters={() => setFilters(NO_FILTERS)}
-        onSelect={select}
-        onNew={newEntry}
-        onEmptyTrash={emptyTrash}
-      />
+    <div className={`journal${focus ? " focus" : ""}`}>
+      {!focus && (
+        <>
+          <Sidebar
+            username={username}
+            metas={metas}
+            trashCount={trash.length}
+            section={section}
+            tags={allTags}
+            filters={filters}
+            onFilters={(f) => {
+              void openSection("entries");
+              setFilters(f);
+            }}
+            onSection={openSection}
+            onSelect={(id) => void openSection("entries").then(() => select(id))}
+            onNew={newEntry}
+            onLock={lock}
+            onSettings={() => setShowSettings("appearance")}
+            templates={templatesOf(settings, t)}
+            defaultTemplateId={settings.defaultTemplateId}
+            onManageTemplates={() => setShowSettings("templates")}
+          />
+          <EntryList
+            section={section}
+            entries={inTrash ? trash : visible}
+            total={inTrash ? trash.length : metas.length}
+            selectedId={inTrash ? trashSelectedId : selectedId}
+            filters={filters}
+            searchRef={searchRef}
+            onQuery={(query) => setFilters((f) => ({ ...f, query }))}
+            onClearFilters={() => setFilters(NO_FILTERS)}
+            onSelect={select}
+            onNew={newEntry}
+            onEmptyTrash={emptyTrash}
+          />
+        </>
+      )}
       <main className="editor-pane">
         {toast && (
           <div className={`toast ${toast.kind}`}>
@@ -520,6 +549,8 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
             onDelete={onDelete}
             onDiscard={onDiscard}
             flushRef={flushRef}
+            focus={focus}
+            onToggleFocus={() => setFocusMode((on) => !on)}
           />
         ) : (
           <div className="empty-state">

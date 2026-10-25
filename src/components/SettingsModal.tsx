@@ -208,7 +208,10 @@ export function SettingsModal(props: Props) {
               </label>
               <label className="field row">
                 <span>{t.settings.contentFont}</span>
-                <select value={settings.contentFont} onChange={(e) => set("contentFont", e.target.value as ContentFont)}>
+                <select
+                  value={settings.contentFont}
+                  onChange={(e) => set("contentFont", e.target.value as ContentFont)}
+                >
                   {CONTENT_FONTS.map((f) => (
                     <option key={f} value={f}>
                       {t.settings.contentFonts[f]}
@@ -218,7 +221,10 @@ export function SettingsModal(props: Props) {
               </label>
               <label className="field row">
                 <span>{t.settings.lineSpacing}</span>
-                <select value={settings.lineSpacing} onChange={(e) => set("lineSpacing", e.target.value as LineSpacing)}>
+                <select
+                  value={settings.lineSpacing}
+                  onChange={(e) => set("lineSpacing", e.target.value as LineSpacing)}
+                >
                   {LINE_SPACINGS.map((l) => (
                     <option key={l} value={l}>
                       {t.settings.lineSpacings[l]}
@@ -258,6 +264,14 @@ export function SettingsModal(props: Props) {
                   type="checkbox"
                   checked={settings.spellcheck}
                   onChange={(e) => set("spellcheck", e.target.checked)}
+                />
+              </label>
+              <label className="field row checkbox">
+                <span>{t.settings.typewriter}</span>
+                <input
+                  type="checkbox"
+                  checked={settings.typewriter}
+                  onChange={(e) => set("typewriter", e.target.checked)}
                 />
               </label>
             </>

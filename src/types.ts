@@ -44,6 +44,8 @@ export interface Settings {
   lineSpacing: LineSpacing;
   contentWidth: ContentWidth;
   spellcheck: boolean;
+  /** In focus mode, keep the caret line vertically centered. */
+  typewriter: boolean;
   defaultView: EditorView;
   language: Language;
   /** Lock when the computer sleeps or the screen locks. */
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: Omit<Settings, "language"> = {
   lineSpacing: "normal",
   contentWidth: "medium",
   spellcheck: false,
+  typewriter: true,
   defaultView: "edit",
   lockOnSystemLock: true,
   autoBackup: { dir: null, intervalHours: 24, keep: 10, lastAt: null },

@@ -8,6 +8,7 @@ import { formatLong } from "../dates";
 import type { EditorView, Entry, EntryInput, EntryMeta, Settings } from "../types";
 import { MOODS } from "../types";
 import { contentStyle } from "../typography";
+import { centerCaret } from "../caret";
 import { MarkdownView } from "./MarkdownView";
 import { TagInput } from "./TagInput";
 import { FORMATS, applyFormat, continueList, type FormatKind } from "../markdown";
@@ -21,6 +22,8 @@ interface Props {
   onDelete: (id: string) => Promise<boolean>;
   onDiscard: (id: string) => Promise<void>;
   flushRef: RefObject<(() => Promise<void>) | null>;
+  focus: boolean;
+  onToggleFocus: () => void;
 }
 
 type SaveState = "saved" | "dirty" | "saving" | "error";
@@ -53,12 +56,16 @@ function formatTime(iso: string, locale: string) {
   return isNaN(d.getTime()) ? "" : d.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onDiscard, flushRef }: Props) {
+export function Editor(props: Props) {
+  const { entry, settings, tagSuggestions, onSaved, onDelete, onDiscard, flushRef, focus, onToggleFocus } = props;
   const { t, locale } = useI18n();
   const tRef = useRef(t);
   tRef.current = t;
   const [draft, setDraft] = useState<EntryInput>(() => toInput(entry));
-  const [view, setView] = useState<EditorView>(settings.defaultView);
+  const [chosenView, setView] = useState<EditorView>(settings.defaultView);
+  // Focus mode is for writing, so it always shows the plain editor.
+  const view = focus ? "edit" : chosenView;
+  const typewriter = focus && settings.typewriter;
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState(entry.updatedAt);
@@ -138,6 +145,21 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
       pendingSelection.current = null;
     }
   });
+
+  const keepCaretCentered = useCallback(() => {
+    const ta = textRef.current;
+    if (typewriter && ta && document.activeElement === ta) centerCaret(ta);
+  }, [typewriter]);
+
+  useLayoutEffect(keepCaretCentered, [draft.body, keepCaretCentered]);
+
+  // Entering focus mode puts the cursor back into the text.
+  useEffect(() => {
+    const ta = textRef.current;
+    if (!focus || !ta || document.activeElement === titleRef.current) return;
+    ta.focus();
+    keepCaretCentered();
+  }, [focus, keepCaretCentered]);
 
   const setDirtyDraft = useCallback((next: EntryInput) => {
     draftRef.current = next;
@@ -304,63 +326,77 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
 
   return (
     <div
-      className={`editor${view === "split" ? " split" : ""}`}
+      className={`editor${view === "split" ? " split" : ""}${focus ? " focus" : ""}${typewriter ? " typewriter" : ""}`}
       style={contentStyle(settings)}
       onKeyDownCapture={onKeyDownCapture}
     >
-      <header className="editor-header">
-        <div className="editor-meta-row">
-          <input
-            type="date"
-            className="date-input"
-            value={draft.date}
-            onChange={(e) => e.target.value && update({ date: e.target.value })}
-            title={formatLong(draft.date, locale)}
-          />
-          <div className="mood-picker" role="radiogroup" aria-label={t.editor.mood}>
-            {MOODS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className={draft.mood === m.id ? "active" : ""}
-                title={t.moods[m.id]}
-                aria-checked={draft.mood === m.id}
-                role="radio"
-                onClick={() => update({ mood: draft.mood === m.id ? null : m.id })}
-              >
-                {m.emoji}
-              </button>
-            ))}
-          </div>
-          <div className="spacer" />
-          <button
-            type="button"
-            className={`icon-btn star ${draft.favorite ? "on" : ""}`}
-            title={draft.favorite ? t.editor.favRemove : t.editor.favAdd}
-            onClick={() => update({ favorite: !draft.favorite })}
-          >
-            {draft.favorite ? "★" : "☆"}
-          </button>
-          <div className="segmented small">
-            {(["edit", "split", "preview"] as const).map((v) => (
-              <button key={v} type="button" className={view === v ? "active" : ""} onClick={() => setView(v)}>
-                {t.editor.views[v]}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="icon-btn danger"
-            title={t.editor.deleteEntry}
-            onClick={async () => {
-              await save();
-              doneRef.current = true;
-              if (!(await onDelete(entry.id))) doneRef.current = false;
-            }}
-          >
-            🗑
+      {focus && (
+        <div className="focus-bar">
+          <span>{t.editor.words(words)}</span>
+          <span className={`save-state ${saveState}`}>{saveLabel[saveState]}</span>
+          <button type="button" className="icon-btn" title={t.editor.exitFocus} onClick={onToggleFocus}>
+            ✕
           </button>
         </div>
+      )}
+      <header className="editor-header">
+        {!focus && (
+          <div className="editor-meta-row">
+            <input
+              type="date"
+              className="date-input"
+              value={draft.date}
+              onChange={(e) => e.target.value && update({ date: e.target.value })}
+              title={formatLong(draft.date, locale)}
+            />
+            <div className="mood-picker" role="radiogroup" aria-label={t.editor.mood}>
+              {MOODS.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={draft.mood === m.id ? "active" : ""}
+                  title={t.moods[m.id]}
+                  aria-checked={draft.mood === m.id}
+                  role="radio"
+                  onClick={() => update({ mood: draft.mood === m.id ? null : m.id })}
+                >
+                  {m.emoji}
+                </button>
+              ))}
+            </div>
+            <div className="spacer" />
+            <button
+              type="button"
+              className={`icon-btn star ${draft.favorite ? "on" : ""}`}
+              title={draft.favorite ? t.editor.favRemove : t.editor.favAdd}
+              onClick={() => update({ favorite: !draft.favorite })}
+            >
+              {draft.favorite ? "★" : "☆"}
+            </button>
+            <div className="segmented small">
+              {(["edit", "split", "preview"] as const).map((v) => (
+                <button key={v} type="button" className={view === v ? "active" : ""} onClick={() => setView(v)}>
+                  {t.editor.views[v]}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="icon-btn" title={t.editor.focus} onClick={onToggleFocus}>
+              ⛶
+            </button>
+            <button
+              type="button"
+              className="icon-btn danger"
+              title={t.editor.deleteEntry}
+              onClick={async () => {
+                await save();
+                doneRef.current = true;
+                if (!(await onDelete(entry.id))) doneRef.current = false;
+              }}
+            >
+              🗑
+            </button>
+          </div>
+        )}
         <input
           ref={titleRef}
           className="title-input"
@@ -375,11 +411,15 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
             }
           }}
         />
-        <div className="editor-date-long">{formatLong(draft.date, locale)}</div>
-        <TagInput tags={draft.tags} suggestions={tagSuggestions} onChange={(tags) => update({ tags })} />
+        {!focus && (
+          <>
+            <div className="editor-date-long">{formatLong(draft.date, locale)}</div>
+            <TagInput tags={draft.tags} suggestions={tagSuggestions} onChange={(tags) => update({ tags })} />
+          </>
+        )}
       </header>
 
-      {view !== "preview" && (
+      {view !== "preview" && !focus && (
         <div className="toolbar" role="toolbar">
           {FORMATS.map((f, i) =>
             f.kind === "separator" ? (
@@ -411,6 +451,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
             onChange={(e) => update({ body: e.target.value }, "body")}
             onKeyDown={onBodyKey}
             onPaste={onPaste}
+            onSelect={keepCaretCentered}
             onBlur={() => void save()}
           />
         )}
@@ -421,25 +462,27 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
         )}
       </div>
 
-      <footer className="status-bar">
-        <span>{t.editor.words(words)}</span>
-        <span>{t.editor.chars(draft.body.length)}</span>
-        <span>{t.editor.readTime(readMinutes)}</span>
-        <span className="spacer" />
-        {addingImages > 0 && <span>{t.editor.addingImage}</span>}
-        {imageError && (
-          <span className="save-state error" onClick={() => setImageError(null)}>
-            {imageError}
+      {!focus && (
+        <footer className="status-bar">
+          <span>{t.editor.words(words)}</span>
+          <span>{t.editor.chars(draft.body.length)}</span>
+          <span>{t.editor.readTime(readMinutes)}</span>
+          <span className="spacer" />
+          {addingImages > 0 && <span>{t.editor.addingImage}</span>}
+          {imageError && (
+            <span className="save-state error" onClick={() => setImageError(null)}>
+              {imageError}
+            </span>
+          )}
+          <span title={t.editor.created(formatTime(entry.createdAt, locale))}>
+            {t.editor.lastEdited(formatTime(updatedAt, locale))}
           </span>
-        )}
-        <span title={t.editor.created(formatTime(entry.createdAt, locale))}>
-          {t.editor.lastEdited(formatTime(updatedAt, locale))}
-        </span>
-        <span className={`save-state ${saveState}`}>
-          {saveState === "saved" ? "🔒 " : ""}
-          {saveLabel[saveState]}
-        </span>
-      </footer>
+          <span className={`save-state ${saveState}`}>
+            {saveState === "saved" ? "🔒 " : ""}
+            {saveLabel[saveState]}
+          </span>
+        </footer>
+      )}
     </div>
   );
 }

@@ -43,3 +43,11 @@ export function currentStreak(dates: Set<string>): number {
   }
   return streak;
 }
+
+/** Items from earlier years on the same month and day; Feb 29 ones show on Feb 28 in common years. */
+export function onThisDay<T extends { date: string }>(items: T[], day = today()): T[] {
+  const md = day.slice(5);
+  const leap = new Date(Number(day.slice(0, 4)), 1, 29).getMonth() === 1;
+  const matches = (d: string) => d.slice(5) === md || (!leap && md === "02-28" && d.slice(5) === "02-29");
+  return items.filter((m) => m.date < day && matches(m.date));
+}

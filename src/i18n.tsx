@@ -52,6 +52,8 @@ const tr = {
   },
 
   editor: {
+    focus: "Odak modu (Ctrl+Shift+F)",
+    exitFocus: "Odak modundan çık (Esc)",
     mood: "Ruh hali",
     favAdd: "Favorilere ekle",
     favRemove: "Favorilerden çıkar",
@@ -261,6 +263,7 @@ const tr = {
     favorites: "★ Favoriler",
     tags: "Etiketler",
     onThisDay: "Geçmişte bugün",
+    yearsAgo: (n: number) => (n === 1 ? "Geçen yıl" : `${n} yıl önce`),
     streak: "gün seri",
     thisMonth: "bu ay",
     words: "kelime",
@@ -286,6 +289,7 @@ const tr = {
     typographySample: "Bugün sabah erkenden kalktım; çay demlenirken pencereden şehrin uyanışını izledim.",
     defaultView: "Varsayılan görünüm",
     spellcheck: "Yazım denetimi",
+    typewriter: "Odak modunda daktilo kaydırması",
     autoLock: "Otomatik kilit",
     lockOnSystemLock: "Bilgisayar uykuya geçince veya ekran kilitlenince kilitle",
     autoLockOff: "Kapalı",
@@ -394,6 +398,8 @@ const en: Dict = {
   },
 
   editor: {
+    focus: "Focus mode (Ctrl+Shift+F)",
+    exitFocus: "Exit focus mode (Esc)",
     mood: "Mood",
     favAdd: "Add to favorites",
     favRemove: "Remove from favorites",
@@ -603,6 +609,7 @@ const en: Dict = {
     favorites: "★ Favorites",
     tags: "Tags",
     onThisDay: "On this day",
+    yearsAgo: (n) => (n === 1 ? "Last year" : `${n} years ago`),
     streak: "day streak",
     thisMonth: "this month",
     words: "words",
@@ -628,6 +635,7 @@ const en: Dict = {
     typographySample: "I woke up early this morning and watched the city wake up while the tea was brewing.",
     defaultView: "Default view",
     spellcheck: "Spell check",
+    typewriter: "Typewriter scrolling in focus mode",
     autoLock: "Auto-lock",
     lockOnSystemLock: "Lock when the computer sleeps or the screen locks",
     autoLockOff: "Off",

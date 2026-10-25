@@ -403,16 +403,44 @@ kbd {
   flex-wrap: wrap;
   gap: 4px;
 }
+.on-this-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .on-this-day {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   width: 100%;
+  min-width: 0;
   text-align: left;
-  border: none;
-  background: none;
-  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 8px 10px;
+}
+.on-this-day:hover {
+  border-color: var(--accent);
+}
+.otd-when {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.otd-title,
+.otd-excerpt {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.otd-title {
+  font-weight: 600;
+}
+.otd-excerpt {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 .stats {
   margin-top: auto;
@@ -1140,6 +1168,37 @@ button.tag:hover {
   --axis: #45434b;
 }
 
+.journal.focus {
+  grid-template-columns: 1fr;
+}
+.editor.focus .editor-header {
+  padding-top: 48px;
+}
+.editor.focus .body-input {
+  scrollbar-width: none;
+}
+.editor.typewriter .body-input {
+  /* Lets the last lines scroll up to the middle too. */
+  padding-bottom: 50vh;
+  mask-image: linear-gradient(to bottom, transparent, #000 48px);
+}
+.focus-bar {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.35;
+  transition: opacity 0.2s;
+}
+.focus-bar:hover,
+.focus-bar:focus-within {
+  opacity: 1;
+}
 .journal.stats-mode {
   grid-template-columns: 260px 1fr;
 }

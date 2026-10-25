@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { currentStreak, today } from "../dates";
+import { currentStreak, onThisDay as earlierYears, today } from "../dates";
 import { useI18n } from "../i18n";
-import type { EntryMeta, Template } from "../types";
+import { MOODS, type EntryMeta, type Template } from "../types";
 import { Calendar } from "./Calendar";
 import type { Filters, Section } from "./Journal";
 
@@ -61,12 +61,8 @@ export function Sidebar(props: Props) {
     };
   }, [metas, dates]);
 
-  // Entries written on this calendar day in earlier years.
-  const onThisDay = useMemo(() => {
-    const t = today();
-    const md = t.slice(5);
-    return metas.filter((m) => m.date.slice(5) === md && m.date < t).slice(0, 5);
-  }, [metas]);
+  const onThisDay = useMemo(() => earlierYears(metas), [metas]);
+  const thisYear = new Date().getFullYear();
 
   return (
     <aside className="sidebar">
@@ -146,6 +142,24 @@ export function Sidebar(props: Props) {
         </button>
       </nav>
 
+      {onThisDay.length > 0 && (
+        <section className="side-section">
+          <h4>{t.sidebar.onThisDay}</h4>
+          <div className="on-this-day-list">
+            {onThisDay.map((m) => (
+              <button key={m.id} className="on-this-day" onClick={() => onSelect(m.id)}>
+                <span className="otd-when">
+                  {t.sidebar.yearsAgo(thisYear - Number(m.date.slice(0, 4)))} · {m.date.slice(0, 4)}
+                  {m.mood && <span>{MOODS.find((x) => x.id === m.mood)?.emoji}</span>}
+                </span>
+                <span className="otd-title">{m.title || t.untitled}</span>
+                {m.excerpt && <span className="otd-excerpt">{m.excerpt}</span>}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {tags.length > 0 && (
         <section className="side-section">
           <h4>{t.sidebar.tags}</h4>
@@ -160,17 +174,6 @@ export function Sidebar(props: Props) {
               </button>
             ))}
           </div>
-        </section>
-      )}
-
-      {onThisDay.length > 0 && (
-        <section className="side-section">
-          <h4>{t.sidebar.onThisDay}</h4>
-          {onThisDay.map((m) => (
-            <button key={m.id} className="on-this-day" onClick={() => onSelect(m.id)}>
-              <span className="muted">{m.date.slice(0, 4)}</span> {m.title || t.untitled}
-            </button>
-          ))}
         </section>
       )}
 

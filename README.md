@@ -24,6 +24,7 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 📤 Şifresiz Markdown olarak dışa aktarma (uyarı ile)
 - 🌗 Açık / koyu / sistem teması
 - 🔤 Yazı tipi (serif / sans-serif / eş aralıklı, uygulamaya gömülü), boyutu, satır aralığı ve satır genişliği ayarları
+- 🎯 Odak modu (Ctrl+Shift+F): yalnızca başlık ve metin kalır, isteğe bağlı daktilo kaydırması; F11 ile tam ekran
 - 🌐 Türkçe / İngilizce arayüz (giriş ekranından veya Ayarlar > Görünüm'den)
 
 ### Kısayollar
@@ -34,6 +35,8 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 | Ctrl+F | Ara |
 | Ctrl+L | Kilitle |
 | Ctrl+, | Ayarlar |
+| Ctrl+Shift+F / Esc | Odak moduna gir / çık |
+| F11 | Tam ekran |
 | Ctrl+S | Hemen kaydet |
 | Ctrl+Z / Ctrl+Shift+Z | Geri al / yinele |
 | Ctrl+B / Ctrl+I / Ctrl+E / Ctrl+K | Kalın / italik / kod / bağlantı |
