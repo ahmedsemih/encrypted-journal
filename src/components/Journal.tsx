@@ -12,6 +12,7 @@ import { EntryList } from "./EntryList";
 import { SettingsModal } from "./SettingsModal";
 import { Sidebar } from "./Sidebar";
 import { TrashView } from "./TrashView";
+import { StatsView } from "./StatsView";
 
 interface Props {
   username: string;
@@ -28,7 +29,7 @@ export interface Filters {
   favorites: boolean;
 }
 
-export type Section = "entries" | "trash";
+export type Section = "entries" | "trash" | "stats";
 
 interface Toast {
   kind: "error" | "info";
@@ -381,6 +382,52 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   }, [metas]);
 
   const inTrash = section === "trash";
+
+  const pickDay = (day: string) => {
+    setFilters({ ...NO_FILTERS, day });
+    setSection("entries");
+  };
+
+  if (section === "stats") {
+    return (
+      <div className="journal stats-mode">
+        <Sidebar
+          username={username}
+          metas={metas}
+          trashCount={trash.length}
+          section={section}
+          tags={allTags}
+          filters={filters}
+          onFilters={(f) => {
+            setSection("entries");
+            setFilters(f);
+          }}
+          onSection={openSection}
+          onSelect={(id) => {
+            setSection("entries");
+            setSelectedId(id);
+          }}
+          onNew={newEntry}
+          onLock={lock}
+          onSettings={() => setShowSettings(true)}
+        />
+        <main className="stats-pane">
+          <StatsView metas={metas} onPickDay={pickDay} />
+        </main>
+        {showSettings && (
+          <SettingsModal
+            username={username}
+            settings={settings}
+            onChange={onSettingsChange}
+            onClose={() => setShowSettings(false)}
+            onAccountDeleted={onAccountDeleted}
+            onBackupNow={() => runAutoBackup(true)}
+            flush={flush}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="journal">

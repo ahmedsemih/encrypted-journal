@@ -36,6 +36,7 @@ export function Sidebar(props: Props) {
     onSettings,
   } = props;
   const inTrash = section === "trash";
+  const inEntries = section === "entries";
   const { t, locale } = useI18n();
   const dates = useMemo(() => new Set(metas.map((m) => m.date)), [metas]);
 
@@ -81,16 +82,19 @@ export function Sidebar(props: Props) {
 
       <nav className="nav">
         <button
-          className={!inTrash && !filters.favorites && !filters.tag && !filters.day ? "active" : ""}
+          className={inEntries && !filters.favorites && !filters.tag && !filters.day ? "active" : ""}
           onClick={() => onFilters((f) => ({ ...f, favorites: false, tag: null, day: null }))}
         >
           {t.sidebar.all} <span className="count">{metas.length}</span>
         </button>
         <button
-          className={!inTrash && filters.favorites ? "active" : ""}
+          className={inEntries && filters.favorites ? "active" : ""}
           onClick={() => onFilters((f) => ({ ...f, favorites: !f.favorites }))}
         >
           {t.sidebar.favorites} <span className="count">{metas.filter((m) => m.favorite).length}</span>
+        </button>
+        <button className={section === "stats" ? "active" : ""} onClick={() => onSection("stats")}>
+          {t.sidebar.stats}
         </button>
         <button className={inTrash ? "active" : ""} onClick={() => onSection("trash")}>
           {t.sidebar.trash} {trashCount > 0 && <span className="count">{trashCount}</span>}

@@ -14,6 +14,8 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 🔎 Tam metin arama (başlık, gövde, etiketler)
 - 🏷️ Etiketler, 😄 ruh hali, ★ favoriler
 - 🕰️ "Geçmişte bugün", seri (streak) ve kelime istatistikleri
+- 🖼 Şifreli resim ekleri (araç çubuğu, yapıştırma veya sürükle-bırak); yedeğe ve dışa aktarıma dahil
+- 📊 İstatistikler: yazma takvimi, aylık ruh hali, kelime sayısı, etiketler, yazma saatleri (her grafik tablo olarak da görülebilir)
 - 🔒 Hareketsizlikte otomatik kilit, manuel kilit (Ctrl+L); bilgisayar uykuya geçince (tüm platformlar) veya ekran kilitlenince (Linux) kilit
 - 🔑 Parola değiştirme (kayıtlar yeniden şifrelenmeden)
 - 📦 Şifreli tek dosya yedek alma / geri yükleme
@@ -112,6 +114,7 @@ src-tauri/src/
   crypto.rs            Argon2id + XChaCha20-Poly1305
   entry.rs             Kayıt modeli, Markdown/front matter dönüşümü
   vault.rs             Disk düzeni, hesap işlemleri, yedekleme
+  attachments.rs       Resim türü tespiti, Markdown referansları
   commands.rs          Tauri komutları
   syslock.rs           Uyku / ekran kilidi algılama
 ```
