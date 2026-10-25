@@ -23,6 +23,7 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 📦 Şifreli tek dosya yedek alma / geri yükleme
 - 📤 Şifresiz Markdown olarak dışa aktarma (uyarı ile)
 - 🌗 Açık / koyu / sistem teması
+- 🔤 Yazı tipi (serif / sans-serif / eş aralıklı, uygulamaya gömülü), boyutu, satır aralığı ve satır genişliği ayarları
 - 🌐 Türkçe / İngilizce arayüz (giriş ekranından veya Ayarlar > Görünüm'den)
 
 ### Kısayollar

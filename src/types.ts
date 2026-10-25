@@ -31,11 +31,18 @@ import type { Language } from "./i18n";
 
 export type Theme = "system" | "light" | "dark";
 export type EditorView = "edit" | "split" | "preview";
+export type ContentFont = "serif" | "sans" | "mono";
+export type LineSpacing = "compact" | "normal" | "relaxed";
+export type ContentWidth = "narrow" | "medium" | "wide";
 
 export interface Settings {
   theme: Theme;
   autoLockMinutes: number;
   fontSize: number;
+  /** Typeface of the entry title, editor and preview; the rest of the UI keeps the system font. */
+  contentFont: ContentFont;
+  lineSpacing: LineSpacing;
+  contentWidth: ContentWidth;
   spellcheck: boolean;
   defaultView: EditorView;
   language: Language;
@@ -71,6 +78,9 @@ export const DEFAULT_SETTINGS: Omit<Settings, "language"> = {
   theme: "system",
   autoLockMinutes: 10,
   fontSize: 16,
+  contentFont: "serif",
+  lineSpacing: "normal",
+  contentWidth: "medium",
   spellcheck: false,
   defaultView: "edit",
   lockOnSystemLock: true,

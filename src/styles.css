@@ -14,8 +14,8 @@
   --shadow: 0 8px 30px rgb(0 0 0 / 0.12);
   --radius: 10px;
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Noto Sans", Ubuntu, sans-serif;
-  --font-serif: "Iowan Old Style", "Charter", "Georgia", "Noto Serif", serif;
-  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, "Cascadia Code", monospace;
+  --font-serif: "Literata Variable", "Iowan Old Style", "Charter", "Georgia", "Noto Serif", serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Fira Code", ui-monospace, "Cascadia Code", monospace;
   color-scheme: light;
 }
 
@@ -645,9 +645,14 @@ button.tag:hover {
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* Centers a column of --content-width; percentages resolve against each pane at use. */
+  --gutter: max(40px, calc((100% - var(--content-width, 760px)) / 2));
+}
+.editor.split {
+  --gutter: 40px;
 }
 .editor-header {
-  padding: 16px 40px 8px;
+  padding: 16px var(--gutter) 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -692,7 +697,7 @@ button.tag:hover {
   border: none;
   background: none;
   padding: 6px 0 0;
-  font-family: var(--font-serif);
+  font-family: var(--content-font, var(--font-serif));
   font-size: 30px;
   font-weight: 700;
   box-shadow: none !important;
@@ -706,7 +711,7 @@ button.tag:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 6px 36px;
+  padding: 6px calc(var(--gutter) - 4px);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
@@ -742,21 +747,17 @@ button.tag:hover {
   border: none;
   border-radius: 0;
   resize: none;
-  padding: 20px 40px 40px;
-  font-family: var(--font-serif);
+  padding: 20px var(--gutter) 40px;
+  font-family: var(--content-font, var(--font-serif));
   font-size: var(--editor-font-size, 16px);
-  line-height: 1.7;
+  line-height: var(--content-line-height, 1.7);
   background: none;
   height: 100%;
   width: 100%;
 }
-.view-split .body-input {
-  font-family: var(--font-mono);
-  font-size: calc(var(--editor-font-size, 16px) - 2px);
-}
 .preview {
   overflow-y: auto;
-  padding: 20px 40px 40px;
+  padding: 20px var(--gutter) 40px;
   font-size: var(--editor-font-size, 16px);
 }
 .status-bar {
@@ -806,9 +807,22 @@ button.tag:hover {
 
 /* ---------- markdown ---------- */
 .markdown {
-  font-family: var(--font-serif);
-  line-height: 1.7;
+  font-family: var(--content-font, var(--font-serif));
+  line-height: var(--content-line-height, 1.7);
   max-width: 760px;
+}
+.preview .markdown {
+  max-width: none;
+}
+.typography-sample {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: var(--content-font);
+  font-size: var(--editor-font-size);
+  line-height: var(--content-line-height);
 }
 .markdown h1,
 .markdown h2,

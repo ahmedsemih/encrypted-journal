@@ -7,6 +7,7 @@ import { errorText, useI18n } from "../i18n";
 import { formatLong } from "../dates";
 import type { EditorView, Entry, EntryInput, EntryMeta, Settings } from "../types";
 import { MOODS } from "../types";
+import { contentStyle } from "../typography";
 import { MarkdownView } from "./MarkdownView";
 import { TagInput } from "./TagInput";
 import { FORMATS, applyFormat, continueList, type FormatKind } from "../markdown";
@@ -303,8 +304,8 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
 
   return (
     <div
-      className="editor"
-      style={{ ["--editor-font-size" as string]: `${settings.fontSize}px` }}
+      className={`editor${view === "split" ? " split" : ""}`}
+      style={contentStyle(settings)}
       onKeyDownCapture={onKeyDownCapture}
     >
       <header className="editor-header">

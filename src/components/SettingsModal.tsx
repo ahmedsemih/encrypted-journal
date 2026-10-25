@@ -3,7 +3,8 @@ import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { today } from "../dates";
 import { errorText, LANGUAGES, useI18n, type Language } from "../i18n";
-import type { AutoBackup, EditorView, Settings, Theme } from "../types";
+import type { AutoBackup, ContentFont, ContentWidth, EditorView, LineSpacing, Settings, Theme } from "../types";
+import { CONTENT_FONTS, CONTENT_WIDTHS, LINE_SPACINGS, contentStyle } from "../typography";
 import { RecoveryKeyDialog } from "./RecoveryKeyDialog";
 import { TemplatesEditor } from "./TemplatesEditor";
 
@@ -205,6 +206,42 @@ export function SettingsModal(props: Props) {
                   ))}
                 </select>
               </label>
+              <label className="field row">
+                <span>{t.settings.contentFont}</span>
+                <select value={settings.contentFont} onChange={(e) => set("contentFont", e.target.value as ContentFont)}>
+                  {CONTENT_FONTS.map((f) => (
+                    <option key={f} value={f}>
+                      {t.settings.contentFonts[f]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field row">
+                <span>{t.settings.lineSpacing}</span>
+                <select value={settings.lineSpacing} onChange={(e) => set("lineSpacing", e.target.value as LineSpacing)}>
+                  {LINE_SPACINGS.map((l) => (
+                    <option key={l} value={l}>
+                      {t.settings.lineSpacings[l]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field row">
+                <span>{t.settings.contentWidth}</span>
+                <select
+                  value={settings.contentWidth}
+                  onChange={(e) => set("contentWidth", e.target.value as ContentWidth)}
+                >
+                  {CONTENT_WIDTHS.map((w) => (
+                    <option key={w} value={w}>
+                      {t.settings.contentWidths[w]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="typography-sample" style={contentStyle(settings)}>
+                {t.settings.typographySample}
+              </p>
               <label className="field row">
                 <span>{t.settings.defaultView}</span>
                 <select value={settings.defaultView} onChange={(e) => set("defaultView", e.target.value as EditorView)}>
