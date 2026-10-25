@@ -110,7 +110,7 @@ pub fn import_backup(state: State<'_, AppState>, path: PathBuf) -> AppResult<()>
 #[tauri::command]
 pub fn list_entries(state: State<'_, AppState>) -> AppResult<Vec<EntryMeta>> {
     with_session(&state, |s| {
-        let mut metas: Vec<EntryMeta> = s.entries.values().map(Entry::meta).collect();
+        let mut metas: Vec<EntryMeta> = s.entries.values().filter(|e| !e.is_trashed()).map(Entry::meta).collect();
         metas.sort_by(|a, b| b.date.cmp(&a.date).then_with(|| b.created_at.cmp(&a.created_at)));
         Ok(metas)
     })
@@ -142,8 +142,36 @@ pub fn save_entry(state: State<'_, AppState>, input: EntryInput) -> AppResult<En
 }
 
 #[tauri::command]
-pub fn delete_entry(state: State<'_, AppState>, id: String) -> AppResult<()> {
-    with_session(&state, |s| s.delete_entry(&id))
+pub fn list_trash(state: State<'_, AppState>) -> AppResult<Vec<EntryMeta>> {
+    with_session(&state, |s| {
+        let mut metas: Vec<EntryMeta> = s.entries.values().filter(|e| e.is_trashed()).map(Entry::meta).collect();
+        metas.sort_by(|a, b| b.deleted_at.cmp(&a.deleted_at));
+        Ok(metas)
+    })
+}
+
+#[tauri::command]
+pub fn trash_entry(state: State<'_, AppState>, id: String) -> AppResult<EntryMeta> {
+    with_session(&state, |s| Ok(s.trash_entry(&id)?.meta()))
+}
+
+#[tauri::command]
+pub fn restore_entry(state: State<'_, AppState>, id: String) -> AppResult<EntryMeta> {
+    with_session(&state, |s| Ok(s.restore_entry(&id)?.meta()))
+}
+
+/// Permanently deletes an entry (used for the trash and for discarding empty drafts).
+#[tauri::command]
+pub fn purge_entry(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    with_session(&state, |s| s.purge_entry(&id))
+}
+
+#[tauri::command]
+pub fn empty_trash(state: State<'_, AppState>) -> AppResult<()> {
+    with_session(&state, |s| {
+        let ids: Vec<String> = s.entries.values().filter(|e| e.is_trashed()).map(|e| e.id.clone()).collect();
+        ids.iter().try_for_each(|id| s.purge_entry(id))
+    })
 }
 
 /// Full-text search over decrypted entries; returns matching ids.
@@ -151,7 +179,7 @@ pub fn delete_entry(state: State<'_, AppState>, id: String) -> AppResult<()> {
 pub fn search_entries(state: State<'_, AppState>, query: String) -> AppResult<Vec<String>> {
     let terms: Vec<String> = query.to_lowercase().split_whitespace().map(String::from).collect();
     with_session(&state, |s| {
-        Ok(s.entries.values().filter(|e| e.matches(&terms)).map(|e| e.id.clone()).collect())
+        Ok(s.entries.values().filter(|e| !e.is_trashed() && e.matches(&terms)).map(|e| e.id.clone()).collect())
     })
 }
 
@@ -175,4 +203,10 @@ pub fn export_markdown(state: State<'_, AppState>, dir: PathBuf) -> AppResult<St
 #[tauri::command]
 pub fn export_backup(state: State<'_, AppState>, path: PathBuf) -> AppResult<()> {
     with_session(&state, |s| s.export_backup(&path))
+}
+
+/// Writes a timestamped encrypted backup into `dir`, keeping the newest `keep`.
+#[tauri::command]
+pub fn auto_backup(state: State<'_, AppState>, dir: PathBuf, keep: usize) -> AppResult<String> {
+    with_session(&state, |s| Ok(s.auto_backup(&dir, keep)?.to_string_lossy().into_owned()))
 }

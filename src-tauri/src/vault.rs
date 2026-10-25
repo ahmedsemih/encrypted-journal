@@ -34,6 +34,10 @@ const ENTRY_SUFFIX: &str = ".md.enc";
 const VAULT_VERSION: u32 = 1;
 const BACKUP_FORMAT: &str = "encrypted-journal-backup";
 const MIN_PASSWORD_CHARS: usize = 8;
+/// Trashed entries are purged for good after this many days.
+const TRASH_RETENTION_DAYS: i64 = 30;
+const AUTO_BACKUP_PREFIX: &str = "journal-auto-";
+const BACKUP_EXTENSION: &str = "ejbackup";
 
 const KEY_WRAP_AAD: &[u8] = b"encrypted-journal:vault-key:v1";
 const SETTINGS_AAD: &[u8] = b"encrypted-journal:settings:v1";
@@ -186,6 +190,7 @@ pub fn login(root: &Path, username: &str, password: &str) -> AppResult<Session> 
     let key = unwrap_key(&header, password)?;
     let mut session = Session { username: name, dir, key, entries: HashMap::new() };
     session.load_entries()?;
+    session.purge_expired_trash();
     Ok(session)
 }
 
@@ -294,7 +299,44 @@ impl Session {
         Ok(())
     }
 
-    pub fn delete_entry(&mut self, id: &str) -> AppResult<()> {
+    fn set_trashed(&mut self, id: &str, trashed: bool) -> AppResult<Entry> {
+        let mut entry = self.entries.get(id).cloned().ok_or(AppError::NotFound)?;
+        entry.deleted_at = trashed.then(entry::now);
+        self.save_entry(entry.clone())?;
+        Ok(entry)
+    }
+
+    /// Moves an entry to the trash (it stays encrypted on disk until purged).
+    pub fn trash_entry(&mut self, id: &str) -> AppResult<Entry> {
+        self.set_trashed(id, true)
+    }
+
+    pub fn restore_entry(&mut self, id: &str) -> AppResult<Entry> {
+        self.set_trashed(id, false)
+    }
+
+    pub fn purge_expired_trash(&mut self) {
+        let cutoff = chrono::Local::now() - chrono::Duration::days(TRASH_RETENTION_DAYS);
+        let expired: Vec<String> = self
+            .entries
+            .values()
+            .filter(|e| {
+                e.deleted_at
+                    .as_deref()
+                    .and_then(|d| chrono::DateTime::parse_from_rfc3339(d).ok())
+                    .is_some_and(|d| d < cutoff)
+            })
+            .map(|e| e.id.clone())
+            .collect();
+        for id in expired {
+            if let Err(err) = self.purge_entry(&id) {
+                eprintln!("could not purge trashed entry {id}: {err}");
+            }
+        }
+    }
+
+    /// Permanently deletes an entry.
+    pub fn purge_entry(&mut self, id: &str) -> AppResult<()> {
         entry::validate_id(id)?;
         if !self.entries.contains_key(id) {
             return Err(AppError::NotFound);
@@ -328,7 +370,7 @@ impl Session {
         let out = target.join(format!("journal-export-{stamp}"));
         fs::create_dir_all(&out)?;
         let mut used = std::collections::HashSet::new();
-        let mut entries: Vec<&Entry> = self.entries.values().collect();
+        let mut entries: Vec<&Entry> = self.entries.values().filter(|e| !e.is_trashed()).collect();
         entries.sort_by(|a, b| (&a.date, &a.created_at).cmp(&(&b.date, &b.created_at)));
         for e in entries {
             let title = sanitize_file_name(&e.title);
@@ -368,6 +410,35 @@ impl Session {
         };
         write_atomic(path, &serde_json::to_vec(&backup)?)?;
         Ok(())
+    }
+
+    /// Writes a timestamped backup into `dir` and deletes this user's older
+    /// automatic backups beyond `keep`. Other files in `dir` are never touched.
+    pub fn auto_backup(&self, dir: &Path, keep: usize) -> AppResult<PathBuf> {
+        let user_id = self.dir.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        // A short user tag keeps several users' backups in one folder apart.
+        let prefix = format!("{AUTO_BACKUP_PREFIX}{}-", &user_id[..user_id.len().min(8)]);
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let path = dir.join(format!("{prefix}{stamp}.{BACKUP_EXTENSION}"));
+        self.export_backup(&path)?;
+
+        let suffix = format!(".{BACKUP_EXTENSION}");
+        let mut existing: Vec<PathBuf> = fs::read_dir(dir)?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with(&prefix) && n.ends_with(&suffix))
+            })
+            .collect();
+        // Timestamps sort lexicographically, newest last.
+        existing.sort();
+        let excess = existing.len().saturating_sub(keep.max(1));
+        for old in &existing[..excess] {
+            fs::remove_file(old)?;
+        }
+        Ok(path)
     }
 }
 
@@ -473,6 +544,49 @@ mod tests {
         let s2 = login(tmp.path(), "ahmet", "parola123").unwrap();
         assert!(s2.entries.contains_key(&ida));
         assert!(!s2.entries.contains_key(&idb));
+    }
+
+    #[test]
+    fn trash_restore_and_purge() {
+        let (tmp, mut s) = setup();
+        let e = Entry::new("2026-10-25").unwrap();
+        let id = e.id.clone();
+        s.save_entry(e).unwrap();
+
+        s.trash_entry(&id).unwrap();
+        let s2 = login(tmp.path(), "ahmet", "parola123").unwrap();
+        assert!(s2.entries[&id].is_trashed());
+
+        s.restore_entry(&id).unwrap();
+        assert!(!s.entries[&id].is_trashed());
+
+        // Entries trashed long ago are purged on login.
+        let mut old = s.entries[&id].clone();
+        old.deleted_at = Some((chrono::Local::now() - chrono::Duration::days(31)).to_rfc3339());
+        s.save_entry(old).unwrap();
+        let s3 = login(tmp.path(), "ahmet", "parola123").unwrap();
+        assert!(!s3.entries.contains_key(&id));
+        assert!(!s.entry_path(&id).exists());
+    }
+
+    #[test]
+    fn auto_backup_keeps_only_newest() {
+        let (tmp, s) = setup();
+        let dir = tmp.path().join("backups");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("unrelated.ejbackup"), b"x").unwrap();
+        let prefix = format!("{AUTO_BACKUP_PREFIX}{}-", &s.dir.file_name().unwrap().to_str().unwrap()[..8]);
+        for stamp in ["20200101-000000", "20200102-000000", "20200103-000000"] {
+            fs::write(dir.join(format!("{prefix}{stamp}.ejbackup")), b"old").unwrap();
+        }
+        let newest = s.auto_backup(&dir, 2).unwrap();
+        let mut names: Vec<String> =
+            fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().into_string().unwrap()).collect();
+        names.sort();
+        assert_eq!(names.len(), 3);
+        assert!(names.contains(&"unrelated.ejbackup".to_string()));
+        assert!(names.contains(&format!("{prefix}20200103-000000.ejbackup")));
+        assert!(newest.exists());
     }
 
     #[test]

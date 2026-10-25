@@ -7,6 +7,7 @@ import { MOODS } from "../types";
 import { MarkdownView } from "./MarkdownView";
 import { TagInput } from "./TagInput";
 import { FORMATS, applyFormat, continueList, type FormatKind } from "../markdown";
+import * as history from "../history";
 
 interface Props {
   entry: Entry;
@@ -28,6 +29,19 @@ function toInput(e: Entry): EntryInput {
 
 function isEmpty(d: EntryInput) {
   return !d.title.trim() && !d.body.trim() && d.tags.length === 0 && !d.mood && !d.favorite;
+}
+
+/** Caret position right after the region where `before` and `after` differ. */
+function changedCaret(before: string, after: string): number {
+  let suffix = 0;
+  while (
+    suffix < before.length &&
+    suffix < after.length &&
+    before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
+  ) {
+    suffix++;
+  }
+  return after.length - suffix;
 }
 
 function formatTime(iso: string, locale: string) {
@@ -114,17 +128,49 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
     }
   });
 
-  const update = useCallback((patch: Partial<EntryInput>) => {
+  const setDirtyDraft = useCallback((next: EntryInput) => {
+    draftRef.current = next;
     dirtyRef.current = true;
     setSaveState("dirty");
-    setDraft((d) => ({ ...d, ...patch }));
+    setDraft(next);
   }, []);
+
+  /** Applies an edit and records an undo point; edits sharing `group` are merged while typing. */
+  const update = useCallback(
+    (patch: Partial<EntryInput>, group: string | null = null) => {
+      const before = draftRef.current;
+      history.record(before.id, before, group);
+      setDirtyDraft({ ...before, ...patch });
+    },
+    [setDirtyDraft],
+  );
+
+  const travel = (direction: "undo" | "redo") => {
+    const current = draftRef.current;
+    const target = direction === "undo" ? history.undo(current.id, current) : history.redo(current.id, current);
+    if (!target) return;
+    if (target.body !== current.body && view !== "preview") {
+      const caret = changedCaret(current.body, target.body);
+      pendingSelection.current = [caret, caret];
+    }
+    setDirtyDraft(target);
+  };
+
+  // Our own undo stack replaces the browser's, which breaks on programmatic edits.
+  const onKeyDownCapture = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const key = e.key.toLowerCase();
+    if (key === "z" || key === "y") {
+      e.preventDefault();
+      travel(key === "y" || e.shiftKey ? "redo" : "undo");
+    }
+  };
 
   const format = (kind: FormatKind) => {
     const ta = textRef.current;
     if (!ta) return;
     if (view === "preview") setView("edit");
-    const r = applyFormat(draft.body, ta.selectionStart, ta.selectionEnd, kind, t.placeholders);
+    const r = applyFormat(draftRef.current.body, ta.selectionStart, ta.selectionEnd, kind, t.placeholders);
     pendingSelection.current = [r.selStart, r.selEnd];
     update({ body: r.text });
   };
@@ -147,13 +193,13 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
     }
     if (e.key === "Tab") {
       e.preventDefault();
-      const r = applyFormat(draft.body, ta.selectionStart, ta.selectionEnd, e.shiftKey ? "outdent" : "indent", t.placeholders);
+      const r = applyFormat(draftRef.current.body, ta.selectionStart, ta.selectionEnd, e.shiftKey ? "outdent" : "indent", t.placeholders);
       pendingSelection.current = [r.selStart, r.selEnd];
       update({ body: r.text });
       return;
     }
     if (e.key === "Enter" && !e.shiftKey && ta.selectionStart === ta.selectionEnd) {
-      const r = continueList(draft.body, ta.selectionStart);
+      const r = continueList(draftRef.current.body, ta.selectionStart);
       if (r) {
         e.preventDefault();
         pendingSelection.current = [r.selStart, r.selEnd];
@@ -172,7 +218,11 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
   };
 
   return (
-    <div className="editor" style={{ ["--editor-font-size" as string]: `${settings.fontSize}px` }}>
+    <div
+      className="editor"
+      style={{ ["--editor-font-size" as string]: `${settings.fontSize}px` }}
+      onKeyDownCapture={onKeyDownCapture}
+    >
       <header className="editor-header">
         <div className="editor-meta-row">
           <input
@@ -218,6 +268,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
             className="icon-btn danger"
             title={t.editor.deleteEntry}
             onClick={async () => {
+              await save();
               doneRef.current = true;
               if (!(await onDelete(entry.id))) doneRef.current = false;
             }}
@@ -231,7 +282,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
           placeholder={t.editor.titlePlaceholder}
           value={draft.title}
           maxLength={200}
-          onChange={(e) => update({ title: e.target.value })}
+          onChange={(e) => update({ title: e.target.value }, "title")}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -271,7 +322,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
             placeholder={t.editor.bodyPlaceholder}
             value={draft.body}
             spellCheck={settings.spellcheck}
-            onChange={(e) => update({ body: e.target.value })}
+            onChange={(e) => update({ body: e.target.value }, "body")}
             onKeyDown={onBodyKey}
             onBlur={() => void save()}
           />

@@ -38,6 +38,8 @@ pub struct Entry {
     pub tags: Vec<String>,
     pub mood: Option<String>,
     pub favorite: bool,
+    /// Set while the entry sits in the trash.
+    pub deleted_at: Option<String>,
     pub body: String,
 }
 
@@ -66,6 +68,7 @@ pub struct EntryMeta {
     pub tags: Vec<String>,
     pub mood: Option<String>,
     pub favorite: bool,
+    pub deleted_at: Option<String>,
     pub excerpt: String,
     pub word_count: usize,
 }
@@ -113,6 +116,7 @@ impl Entry {
             tags: Vec::new(),
             mood: None,
             favorite: false,
+            deleted_at: None,
             body: String::new(),
         })
     }
@@ -130,6 +134,10 @@ impl Entry {
         Ok(())
     }
 
+    pub fn is_trashed(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
     pub fn meta(&self) -> EntryMeta {
         EntryMeta {
             id: self.id.clone(),
@@ -140,6 +148,7 @@ impl Entry {
             tags: self.tags.clone(),
             mood: self.mood.clone(),
             favorite: self.favorite,
+            deleted_at: self.deleted_at.clone(),
             excerpt: excerpt(&self.body),
             word_count: self.body.split_whitespace().count(),
         }
@@ -168,6 +177,9 @@ impl Entry {
         field(&mut out, "tags", &self.tags);
         field(&mut out, "mood", &self.mood);
         field(&mut out, "favorite", self.favorite);
+        if let Some(deleted_at) = &self.deleted_at {
+            field(&mut out, "deleted_at", deleted_at);
+        }
         out.push_str("---\n\n");
         out.push_str(&self.body);
         out
@@ -208,6 +220,7 @@ impl Entry {
             tags,
             mood: fields.get("mood").and_then(Value::as_str).map(String::from),
             favorite: fields.get("favorite").and_then(Value::as_bool).unwrap_or(false),
+            deleted_at: fields.get("deleted_at").and_then(Value::as_str).map(String::from),
             body: body.to_string(),
         })
     }
@@ -219,7 +232,7 @@ fn excerpt(body: &str) -> String {
     for line in body.lines() {
         let line = line
             .trim()
-            .trim_start_matches(|c: char| matches!(c, '#' | '>' | '-' | '*' | '+' | ' '))
+            .trim_start_matches(['#', '>', '-', '*', '+', ' '])
             .trim_start_matches("[ ] ")
             .trim_start_matches("[x] ");
         if line.is_empty() || line.starts_with("```") || line.chars().all(|c| matches!(c, '-' | '*' | '_' | '|')) {
@@ -260,6 +273,11 @@ mod tests {
         assert!(back.favorite);
         assert_eq!(back.body, e.body);
         assert_eq!(back.date, e.date);
+        assert_eq!(back.deleted_at, None);
+
+        e.deleted_at = Some(now());
+        let back = Entry::from_markdown(&e.id, &e.to_markdown()).unwrap();
+        assert_eq!(back.deleted_at, e.deleted_at);
     }
 
     #[test]

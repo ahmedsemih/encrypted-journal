@@ -7,6 +7,7 @@ export interface EntryMeta {
   tags: string[];
   mood: string | null;
   favorite: boolean;
+  deletedAt: string | null;
   excerpt: string;
   wordCount: number;
 }
@@ -20,6 +21,7 @@ export interface Entry {
   tags: string[];
   mood: string | null;
   favorite: boolean;
+  deletedAt: string | null;
   body: string;
 }
 
@@ -37,6 +39,17 @@ export interface Settings {
   spellcheck: boolean;
   defaultView: EditorView;
   language: Language;
+  /** Lock when the computer sleeps or the screen locks. */
+  lockOnSystemLock: boolean;
+  autoBackup: AutoBackup;
+}
+
+export interface AutoBackup {
+  /** Target folder; null disables automatic backups. */
+  dir: string | null;
+  intervalHours: number;
+  keep: number;
+  lastAt: string | null;
 }
 
 export const DEFAULT_SETTINGS: Omit<Settings, "language"> = {
@@ -45,6 +58,8 @@ export const DEFAULT_SETTINGS: Omit<Settings, "language"> = {
   fontSize: 16,
   spellcheck: false,
   defaultView: "edit",
+  lockOnSystemLock: true,
+  autoBackup: { dir: null, intervalHours: 24, keep: 10, lastAt: null },
 };
 
 export interface AppStatus {

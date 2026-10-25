@@ -2,6 +2,7 @@ mod commands;
 mod crypto;
 mod entry;
 mod error;
+mod syslock;
 mod vault;
 
 use std::{path::PathBuf, sync::Mutex};
@@ -23,6 +24,7 @@ pub fn run() {
             let data_root = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_root)?;
             app.manage(AppState { session: Mutex::new(None), data_root });
+            syslock::spawn(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -37,7 +39,12 @@ pub fn run() {
             commands::get_entry,
             commands::create_entry,
             commands::save_entry,
-            commands::delete_entry,
+            commands::trash_entry,
+            commands::restore_entry,
+            commands::purge_entry,
+            commands::empty_trash,
+            commands::list_trash,
+            commands::auto_backup,
             commands::search_entries,
             commands::get_settings,
             commands::save_settings,

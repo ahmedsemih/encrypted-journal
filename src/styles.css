@@ -967,3 +967,64 @@ button.tag:hover {
   background: var(--surface);
   color: var(--text);
 }
+
+/* ---------- toast with action ---------- */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toast.info {
+  border-color: var(--border);
+}
+
+/* ---------- trash ---------- */
+.trash-head {
+  align-items: center;
+  justify-content: space-between;
+}
+.trash-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.small-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.purge-in {
+  margin-left: auto;
+  font-size: 11px;
+}
+.trash-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 40px;
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+.trash-view .title-input {
+  margin: 0;
+}
+.trash-view .preview {
+  flex: 1;
+}
+
+/* ---------- auto backup ---------- */
+.auto-backup {
+  border-top: none;
+  padding-top: 0;
+}
+.auto-backup .path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.button-group {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}

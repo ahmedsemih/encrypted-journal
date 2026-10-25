@@ -3,21 +3,39 @@ import { currentStreak, today } from "../dates";
 import { useI18n } from "../i18n";
 import type { EntryMeta } from "../types";
 import { Calendar } from "./Calendar";
-import type { Filters } from "./Journal";
+import type { Filters, Section } from "./Journal";
 
 interface Props {
   username: string;
   metas: EntryMeta[];
+  trashCount: number;
+  section: Section;
   tags: [string, number][];
   filters: Filters;
   onFilters: (f: Filters | ((f: Filters) => Filters)) => void;
+  onSection: (s: Section) => void;
   onSelect: (id: string) => void;
   onNew: () => void;
   onLock: () => void;
   onSettings: () => void;
 }
 
-export function Sidebar({ username, metas, tags, filters, onFilters, onSelect, onNew, onLock, onSettings }: Props) {
+export function Sidebar(props: Props) {
+  const {
+    username,
+    metas,
+    trashCount,
+    section,
+    tags,
+    filters,
+    onFilters,
+    onSection,
+    onSelect,
+    onNew,
+    onLock,
+    onSettings,
+  } = props;
+  const inTrash = section === "trash";
   const { t, locale } = useI18n();
   const dates = useMemo(() => new Set(metas.map((m) => m.date)), [metas]);
 
@@ -63,16 +81,19 @@ export function Sidebar({ username, metas, tags, filters, onFilters, onSelect, o
 
       <nav className="nav">
         <button
-          className={!filters.favorites && !filters.tag && !filters.day ? "active" : ""}
+          className={!inTrash && !filters.favorites && !filters.tag && !filters.day ? "active" : ""}
           onClick={() => onFilters((f) => ({ ...f, favorites: false, tag: null, day: null }))}
         >
           {t.sidebar.all} <span className="count">{metas.length}</span>
         </button>
         <button
-          className={filters.favorites ? "active" : ""}
+          className={!inTrash && filters.favorites ? "active" : ""}
           onClick={() => onFilters((f) => ({ ...f, favorites: !f.favorites }))}
         >
           {t.sidebar.favorites} <span className="count">{metas.filter((m) => m.favorite).length}</span>
+        </button>
+        <button className={inTrash ? "active" : ""} onClick={() => onSection("trash")}>
+          {t.sidebar.trash} {trashCount > 0 && <span className="count">{trashCount}</span>}
         </button>
       </nav>
 

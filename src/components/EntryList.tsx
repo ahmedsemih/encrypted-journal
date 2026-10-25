@@ -1,11 +1,14 @@
 import type { RefObject } from "react";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { formatShort } from "../dates";
 import { useI18n } from "../i18n";
 import type { EntryMeta } from "../types";
 import { moodEmoji } from "../types";
-import type { Filters } from "./Journal";
+import type { Filters, Section } from "./Journal";
+import { daysLeft } from "./TrashView";
 
 interface Props {
+  section: Section;
   entries: EntryMeta[];
   total: number;
   selectedId: string | null;
@@ -15,6 +18,7 @@ interface Props {
   onClearFilters: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onEmptyTrash: () => void;
 }
 
 function groupByMonth(entries: EntryMeta[], locale: string) {
@@ -29,25 +33,63 @@ function groupByMonth(entries: EntryMeta[], locale: string) {
   return groups;
 }
 
-export function EntryList({ entries, total, selectedId, filters, searchRef, onQuery, onClearFilters, onSelect, onNew }: Props) {
+export function EntryList(props: Props) {
+  const {
+    section,
+    entries,
+    total,
+    selectedId,
+    filters,
+    searchRef,
+    onQuery,
+    onClearFilters,
+    onSelect,
+    onNew,
+    onEmptyTrash,
+  } = props;
   const { t, locale } = useI18n();
-  const filtered = Boolean(filters.query.trim() || filters.day || filters.tag || filters.favorites);
+  const inTrash = section === "trash";
+  const filtered = !inTrash && Boolean(filters.query.trim() || filters.day || filters.tag || filters.favorites);
+
+  const emptyTrash = async () => {
+    const ok = await ask(t.trash.emptyConfirm(total), {
+      title: t.trash.emptyAll,
+      kind: "warning",
+      okLabel: t.trash.emptyAll,
+      cancelLabel: t.cancel,
+    });
+    if (ok) onEmptyTrash();
+  };
 
   return (
     <section className="entry-list">
-      <div className="entry-list-head">
-        <input
-          ref={searchRef}
-          type="search"
-          className="search"
-          placeholder={t.list.search}
-          value={filters.query}
-          onChange={(e) => onQuery(e.target.value)}
-        />
-        <button className="primary icon-only" title={t.list.newEntryShortcut} onClick={onNew}>
-          +
-        </button>
-      </div>
+      {inTrash ? (
+        <div className="entry-list-head trash-head">
+          <div>
+            <h3>{t.trash.title}</h3>
+            <small className="muted">{t.trash.retention}</small>
+          </div>
+          {total > 0 && (
+            <button className="danger small-btn" onClick={emptyTrash}>
+              {t.trash.emptyAll}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="entry-list-head">
+          <input
+            ref={searchRef}
+            type="search"
+            className="search"
+            placeholder={t.list.search}
+            value={filters.query}
+            onChange={(e) => onQuery(e.target.value)}
+          />
+          <button className="primary icon-only" title={t.list.newEntryShortcut} onClick={onNew}>
+            +
+          </button>
+        </div>
+      )}
       {filtered && (
         <div className="filter-bar">
           <span>
@@ -62,7 +104,9 @@ export function EntryList({ entries, total, selectedId, filters, searchRef, onQu
         </div>
       )}
       <div className="entry-scroll">
-        {entries.length === 0 && <p className="muted center pad">{filtered ? t.list.noMatch : t.list.noEntries}</p>}
+        {entries.length === 0 && (
+          <p className="muted center pad">{inTrash ? t.trash.empty : filtered ? t.list.noMatch : t.list.noEntries}</p>
+        )}
         {groupByMonth(entries, locale).map((g) => (
           <div key={g.label}>
             <h3 className="month-label">{g.label}</h3>
@@ -76,6 +120,7 @@ export function EntryList({ entries, total, selectedId, filters, searchRef, onQu
                   <span className="entry-date">{formatShort(e.date, locale)}</span>
                   {moodEmoji(e.mood) && <span>{moodEmoji(e.mood)}</span>}
                   {e.favorite && <span className="star on">★</span>}
+                  {inTrash && <span className="purge-in">{t.trash.daysLeft(daysLeft(e.deletedAt))}</span>}
                 </div>
                 <div className="entry-title">{e.title || <span className="muted">{t.untitled}</span>}</div>
                 {e.excerpt && <div className="entry-excerpt">{e.excerpt}</div>}

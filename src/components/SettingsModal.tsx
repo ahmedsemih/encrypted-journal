@@ -3,7 +3,7 @@ import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { today } from "../dates";
 import { errorText, LANGUAGES, useI18n, type Language } from "../i18n";
-import type { EditorView, Settings, Theme } from "../types";
+import type { AutoBackup, EditorView, Settings, Theme } from "../types";
 
 interface Props {
   username: string;
@@ -11,13 +11,14 @@ interface Props {
   onChange: (s: Settings) => Promise<void>;
   onClose: () => void;
   onAccountDeleted: () => void;
+  onBackupNow: () => Promise<void>;
   flush: () => Promise<void>;
 }
 
 type Tab = "appearance" | "security" | "data";
 
-export function SettingsModal({ username, settings, onChange, onClose, onAccountDeleted, flush }: Props) {
-  const { t } = useI18n();
+export function SettingsModal({ username, settings, onChange, onClose, onAccountDeleted, onBackupNow, flush }: Props) {
+  const { t, locale } = useI18n();
   const [tab, setTab] = useState<Tab>("appearance");
   const [message, setMessage] = useState<{ kind: "error" | "notice"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,6 +33,19 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value }).catch((e) => setMessage({ kind: "error", text: errorText(t, e) }));
+
+  const setBackup = (patch: Partial<AutoBackup>) => set("autoBackup", { ...settings.autoBackup, ...patch });
+
+  const chooseBackupDir = async () => {
+    const dir = await open({ directory: true, title: t.backup.pickDir });
+    if (typeof dir === "string") await setBackup({ dir });
+  };
+
+  const backupNow = () =>
+    run(async () => {
+      await onBackupNow();
+      return t.backup.done;
+    });
 
   async function run(task: () => Promise<string | null>) {
     setBusy(true);
@@ -190,6 +204,14 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
                   ))}
                 </select>
               </label>
+              <label className="field row checkbox">
+                <span>{t.settings.lockOnSystemLock}</span>
+                <input
+                  type="checkbox"
+                  checked={settings.lockOnSystemLock}
+                  onChange={(e) => set("lockOnSystemLock", e.target.checked)}
+                />
+              </label>
               <form className="sub-form" onSubmit={changePassword}>
                 <h3>{t.settings.changePassword}</h3>
                 <input type="password" placeholder={t.settings.currentPassword} value={pw.current} autoComplete="current-password" onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
@@ -205,6 +227,58 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
 
           {tab === "data" && (
             <>
+              <div className="sub-form auto-backup">
+                <h3>{t.backup.title}</h3>
+                <p className="muted small">{t.backup.info}</p>
+                <div className="action-row">
+                  <span className="path" title={settings.autoBackup.dir ?? ""}>
+                    {settings.autoBackup.dir ?? t.backup.off}
+                  </span>
+                  <div className="button-group">
+                    <button onClick={chooseBackupDir}>{settings.autoBackup.dir ? t.backup.change : t.backup.choose}</button>
+                    {settings.autoBackup.dir && (
+                      <button onClick={() => setBackup({ dir: null })}>{t.backup.disable}</button>
+                    )}
+                  </div>
+                </div>
+                {settings.autoBackup.dir && (
+                  <>
+                    <label className="field row">
+                      <span>{t.backup.frequency}</span>
+                      <select
+                        value={settings.autoBackup.intervalHours}
+                        onChange={(e) => setBackup({ intervalHours: Number(e.target.value) })}
+                      >
+                        {[6, 24, 72, 168].map((h) => (
+                          <option key={h} value={h}>
+                            {t.backup.every(h)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field row">
+                      <span>{t.backup.keep}</span>
+                      <select value={settings.autoBackup.keep} onChange={(e) => setBackup({ keep: Number(e.target.value) })}>
+                        {[3, 5, 10, 20, 30].map((n) => (
+                          <option key={n} value={n}>
+                            {t.backup.keepN(n)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="action-row">
+                      <span className="muted small">
+                        {settings.autoBackup.lastAt
+                          ? t.backup.last(new Date(settings.autoBackup.lastAt).toLocaleString(locale))
+                          : t.backup.never}
+                      </span>
+                      <button disabled={busy} onClick={backupNow}>
+                        {t.backup.now}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               <div className="action-row">
                 <div>
                   <h3>{t.settings.backupTitle}</h3>

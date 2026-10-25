@@ -19,7 +19,11 @@ export const api = {
   getEntry: (id: string) => invoke<Entry>("get_entry", { id }),
   createEntry: (date: string) => invoke<Entry>("create_entry", { date }),
   saveEntry: (input: EntryInput) => invoke<EntryMeta>("save_entry", { input }),
-  deleteEntry: (id: string) => invoke<void>("delete_entry", { id }),
+  listTrash: () => invoke<EntryMeta[]>("list_trash"),
+  trashEntry: (id: string) => invoke<EntryMeta>("trash_entry", { id }),
+  restoreEntry: (id: string) => invoke<EntryMeta>("restore_entry", { id }),
+  purgeEntry: (id: string) => invoke<void>("purge_entry", { id }),
+  emptyTrash: () => invoke<void>("empty_trash"),
   searchEntries: (query: string) => invoke<string[]>("search_entries", { query }),
 
   getSettings: async (): Promise<Settings> => ({
@@ -30,4 +34,5 @@ export const api = {
   saveSettings: (settings: Settings) => invoke<void>("save_settings", { settings }),
   exportMarkdown: (dir: string) => invoke<string>("export_markdown", { dir }),
   exportBackup: (path: string) => invoke<void>("export_backup", { path }),
+  autoBackup: (dir: string, keep: number) => invoke<string>("auto_backup", { dir, keep }),
 };

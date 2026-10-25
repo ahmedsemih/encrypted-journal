@@ -7,11 +7,14 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 🔐 Kullanıcı adı + parola ile çoklu kullanıcı desteği; parola hiçbir yerde saklanmaz
 - 📝 Markdown editörü: araç çubuğu, kısayollar, liste devamı, yaz / bölünmüş / önizleme görünümleri
 - 💾 Otomatik kaydetme (her değişiklikten kısa süre sonra, kayıt değiştirirken, kilitlerken ve pencere kapanırken)
+- ↩️ Geri al / yinele (Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y): yalnızca uygulama açıkken, bellekte tutulur; kilitlenince silinir
+- 🗑 Çöp kutusu: silinen kayıtlar 30 gün saklanır, sonra kalıcı olarak silinir
+- 💽 Otomatik şifreli yedek: seçilen klasöre düzenli yedek, eski yedeklerin otomatik temizliği
 - 📅 Takvim görünümü, güne göre filtreleme
 - 🔎 Tam metin arama (başlık, gövde, etiketler)
 - 🏷️ Etiketler, 😄 ruh hali, ★ favoriler
 - 🕰️ "Geçmişte bugün", seri (streak) ve kelime istatistikleri
-- 🔒 Hareketsizlikte otomatik kilit, manuel kilit (Ctrl+L)
+- 🔒 Hareketsizlikte otomatik kilit, manuel kilit (Ctrl+L); bilgisayar uykuya geçince (tüm platformlar) veya ekran kilitlenince (Linux) kilit
 - 🔑 Parola değiştirme (kayıtlar yeniden şifrelenmeden)
 - 📦 Şifreli tek dosya yedek alma / geri yükleme
 - 📤 Şifresiz Markdown olarak dışa aktarma (uyarı ile)
@@ -27,6 +30,7 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 | Ctrl+L | Kilitle |
 | Ctrl+, | Ayarlar |
 | Ctrl+S | Hemen kaydet |
+| Ctrl+Z / Ctrl+Shift+Z | Geri al / yinele |
 | Ctrl+B / Ctrl+I / Ctrl+E / Ctrl+K | Kalın / italik / kod / bağlantı |
 | Tab / Shift+Tab | Satırı girintile / girintiyi azalt |
 
@@ -109,4 +113,5 @@ src-tauri/src/
   entry.rs             Kayıt modeli, Markdown/front matter dönüşümü
   vault.rs             Disk düzeni, hesap işlemleri, yedekleme
   commands.rs          Tauri komutları
+  syslock.rs           Uyku / ekran kilidi algılama
 ```
