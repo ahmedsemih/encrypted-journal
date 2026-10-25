@@ -35,4 +35,9 @@ export const api = {
   exportMarkdown: (dir: string) => invoke<string>("export_markdown", { dir }),
   exportBackup: (path: string) => invoke<void>("export_backup", { path }),
   autoBackup: (dir: string, keep: number) => invoke<string>("auto_backup", { dir, keep }),
+
+  /** Raw bytes go in the request body instead of a slow JSON number array. */
+  addAttachment: (bytes: Uint8Array) => invoke<string>("add_attachment", bytes),
+  addAttachmentFile: (path: string) => invoke<string>("add_attachment_file", { path }),
+  getAttachment: (id: string) => invoke<ArrayBuffer>("get_attachment", { id }),
 };

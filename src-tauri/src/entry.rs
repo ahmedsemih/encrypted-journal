@@ -229,6 +229,7 @@ impl Entry {
 /// Plain-text preview of the body with common Markdown syntax stripped.
 fn excerpt(body: &str) -> String {
     let mut out = String::new();
+    let body = crate::attachments::strip_images(body);
     for line in body.lines() {
         let line = line
             .trim()

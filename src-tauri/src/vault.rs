@@ -5,6 +5,7 @@
 //!     vault.json          KDF params + DEK wrapped by the password-derived key
 //!     settings.enc        encrypted settings JSON
 //!     entries/<uuid>.md.enc   one encrypted Markdown file per entry
+//!     attachments/<uuid>.enc  one encrypted image per file
 //! ```
 //!
 //! Directory names are hashes so usernames are not visible on disk, and entry
@@ -22,6 +23,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use zeroize::Zeroizing;
+
+use crate::attachments;
 use crate::crypto::{self, KdfParams, SecretKey};
 use crate::entry::{self, Entry};
 use crate::error::{AppError, AppResult};
@@ -31,6 +35,8 @@ const VAULT_FILE: &str = "vault.json";
 const SETTINGS_FILE: &str = "settings.enc";
 const ENTRIES_DIR: &str = "entries";
 const ENTRY_SUFFIX: &str = ".md.enc";
+const ATTACHMENTS_DIR: &str = "attachments";
+const ATTACHMENT_SUFFIX: &str = ".enc";
 const VAULT_VERSION: u32 = 1;
 const BACKUP_FORMAT: &str = "encrypted-journal-backup";
 const MIN_PASSWORD_CHARS: usize = 8;
@@ -44,6 +50,10 @@ const SETTINGS_AAD: &[u8] = b"encrypted-journal:settings:v1";
 
 fn entry_aad(id: &str) -> Vec<u8> {
     format!("encrypted-journal:entry:v1:{id}").into_bytes()
+}
+
+fn attachment_aad(id: &str) -> Vec<u8> {
+    format!("encrypted-journal:attachment:v1:{id}").into_bytes()
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -67,6 +77,9 @@ struct Backup {
     settings: Option<String>,
     /// Entry id -> base64 of the still-encrypted entry file.
     entries: HashMap<String, String>,
+    /// Attachment id -> base64 of the still-encrypted image file.
+    #[serde(default)]
+    attachments: HashMap<String, String>,
 }
 
 /// An unlocked vault. Dropping it wipes the key and decrypted entries.
@@ -191,6 +204,7 @@ pub fn login(root: &Path, username: &str, password: &str) -> AppResult<Session> 
     let mut session = Session { username: name, dir, key, entries: HashMap::new() };
     session.load_entries()?;
     session.purge_expired_trash();
+    session.remove_unused_attachments();
     Ok(session)
 }
 
@@ -228,7 +242,12 @@ pub fn import_backup(root: &Path, path: &Path) -> AppResult<()> {
     for (id, data) in &backup.entries {
         entry::validate_id(id)?;
         let blob = B64.decode(data).map_err(|_| AppError::Invalid("corruptBackup"))?;
-        files.push((format!("{id}{ENTRY_SUFFIX}"), blob));
+        files.push((Path::new(ENTRIES_DIR).join(format!("{id}{ENTRY_SUFFIX}")), blob));
+    }
+    for (id, data) in &backup.attachments {
+        entry::validate_id(id)?;
+        let blob = B64.decode(data).map_err(|_| AppError::Invalid("corruptBackup"))?;
+        files.push((Path::new(ATTACHMENTS_DIR).join(format!("{id}{ATTACHMENT_SUFFIX}")), blob));
     }
     let settings = backup
         .settings
@@ -243,8 +262,9 @@ pub fn import_backup(root: &Path, path: &Path) -> AppResult<()> {
     create_private_dir(&root.join(USERS_DIR))?;
     create_private_dir(&dir)?;
     create_private_dir(&dir.join(ENTRIES_DIR))?;
+    create_private_dir(&dir.join(ATTACHMENTS_DIR))?;
     for (name, blob) in files {
-        write_atomic(&dir.join(ENTRIES_DIR).join(name), &blob)?;
+        write_atomic(&dir.join(name), &blob)?;
     }
     if let Some(settings) = settings {
         write_atomic(&dir.join(SETTINGS_FILE), &settings)?;
@@ -259,6 +279,58 @@ pub fn import_backup(root: &Path, path: &Path) -> AppResult<()> {
 impl Session {
     fn entry_path(&self, id: &str) -> PathBuf {
         self.dir.join(ENTRIES_DIR).join(format!("{id}{ENTRY_SUFFIX}"))
+    }
+
+    fn attachment_path(&self, id: &str) -> PathBuf {
+        self.dir.join(ATTACHMENTS_DIR).join(format!("{id}{ATTACHMENT_SUFFIX}"))
+    }
+
+    /// Ids of all attachment files on disk.
+    fn attachment_ids(&self) -> AppResult<Vec<String>> {
+        let dir = self.dir.join(ATTACHMENTS_DIR);
+        let items = match fs::read_dir(&dir) {
+            Ok(items) => items,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(e.into()),
+        };
+        Ok(items
+            .flatten()
+            .filter_map(|e| e.file_name().to_str()?.strip_suffix(ATTACHMENT_SUFFIX).map(String::from))
+            .filter(|id| entry::validate_id(id).is_ok())
+            .collect())
+    }
+
+    /// Encrypts and stores an image, returning its id.
+    pub fn add_attachment(&self, bytes: &[u8]) -> AppResult<String> {
+        attachments::validate(bytes)?;
+        let id = uuid::Uuid::new_v4().to_string();
+        create_private_dir(&self.dir.join(ATTACHMENTS_DIR))?;
+        let blob = crypto::seal(&self.key, bytes, &attachment_aad(&id))?;
+        write_atomic(&self.attachment_path(&id), &blob)?;
+        Ok(id)
+    }
+
+    pub fn read_attachment(&self, id: &str) -> AppResult<Zeroizing<Vec<u8>>> {
+        entry::validate_id(id)?;
+        let blob = fs::read(self.attachment_path(id)).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => AppError::NotFound,
+            _ => AppError::Io(e),
+        })?;
+        crypto::open(&self.key, &blob, &attachment_aad(id))
+    }
+
+    /// Deletes images no entry (including trashed ones) refers to anymore.
+    /// Runs at login only, so images pasted in the current session are safe
+    /// even before their entry has been saved.
+    pub fn remove_unused_attachments(&self) {
+        let used: std::collections::HashSet<&str> =
+            self.entries.values().flat_map(|e| attachments::references(&e.body)).collect();
+        let Ok(ids) = self.attachment_ids() else { return };
+        for id in ids.iter().filter(|id| !used.contains(id.as_str())) {
+            if let Err(err) = fs::remove_file(self.attachment_path(id)) {
+                eprintln!("could not remove unused attachment {id}: {err}");
+            }
+        }
     }
 
     fn load_entries(&mut self) -> AppResult<()> {
@@ -372,6 +444,21 @@ impl Session {
         let mut used = std::collections::HashSet::new();
         let mut entries: Vec<&Entry> = self.entries.values().filter(|e| !e.is_trashed()).collect();
         entries.sort_by(|a, b| (&a.date, &a.created_at).cmp(&(&b.date, &b.created_at)));
+
+        // Decrypt referenced images next to the Markdown files.
+        let mut image_paths: HashMap<String, String> = HashMap::new();
+        for id in entries.iter().flat_map(|e| attachments::references(&e.body)) {
+            if image_paths.contains_key(id) {
+                continue;
+            }
+            let Ok(bytes) = self.read_attachment(id) else { continue };
+            let ext = attachments::sniff(&bytes).map_or("bin", |(_, ext)| ext);
+            let rel = format!("{ATTACHMENTS_DIR}/{id}.{ext}");
+            fs::create_dir_all(out.join(ATTACHMENTS_DIR))?;
+            fs::write(out.join(&rel), &*bytes)?;
+            image_paths.insert(id.to_string(), rel);
+        }
+
         for e in entries {
             let title = sanitize_file_name(&e.title);
             let base = if title.is_empty() { e.date.clone() } else { format!("{} {}", e.date, title) };
@@ -381,7 +468,11 @@ impl Session {
                 name = format!("{base} ({n}).md");
                 n += 1;
             }
-            fs::write(out.join(&name), e.to_markdown().as_bytes())?;
+            let mut markdown = e.to_markdown();
+            for (id, rel) in &image_paths {
+                *markdown = markdown.replace(&format!("{}{id}", attachments::SCHEME), rel);
+            }
+            fs::write(out.join(&name), markdown.as_bytes())?;
         }
         Ok(out)
     }
@@ -398,6 +489,10 @@ impl Session {
         for id in self.entries.keys() {
             entries.insert(id.clone(), B64.encode(fs::read(self.entry_path(id))?));
         }
+        let mut attachments = HashMap::new();
+        for id in self.attachment_ids()? {
+            attachments.insert(id.clone(), B64.encode(fs::read(self.attachment_path(&id))?));
+        }
         let user_id = self.dir.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
         let backup = Backup {
             format: BACKUP_FORMAT.into(),
@@ -407,6 +502,7 @@ impl Session {
             vault: header,
             settings,
             entries,
+            attachments,
         };
         write_atomic(path, &serde_json::to_vec(&backup)?)?;
         Ok(())
@@ -587,6 +683,38 @@ mod tests {
         assert!(names.contains(&"unrelated.ejbackup".to_string()));
         assert!(names.contains(&format!("{prefix}20200103-000000.ejbackup")));
         assert!(newest.exists());
+    }
+
+    const PNG: &[u8] = b"\x89PNG\r\n\x1a\nfake image data";
+
+    #[test]
+    fn attachments_roundtrip_backup_and_cleanup() {
+        let (tmp, mut s) = setup();
+        let used = s.add_attachment(PNG).unwrap();
+        let unused = s.add_attachment(PNG).unwrap();
+        assert!(s.add_attachment(b"not an image").is_err());
+        assert!(!String::from_utf8_lossy(&fs::read(s.attachment_path(&used)).unwrap()).contains("fake image"));
+        assert_eq!(s.read_attachment(&used).unwrap().as_slice(), PNG);
+
+        let mut e = Entry::new("2026-10-25").unwrap();
+        e.body = format!("![foto](attachment:{used})");
+        s.save_entry(e).unwrap();
+
+        // Backup carries attachments.
+        let backup = tmp.path().join("yedek.ejbackup");
+        s.export_backup(&backup).unwrap();
+        let other = tempfile::tempdir().unwrap();
+        import_backup(other.path(), &backup).unwrap();
+        let restored = login(other.path(), "ahmet", "parola123").unwrap();
+        assert_eq!(restored.read_attachment(&used).unwrap().as_slice(), PNG);
+        // Unreferenced images are cleaned up at login.
+        assert!(matches!(restored.read_attachment(&unused), Err(AppError::NotFound)));
+
+        // Markdown export decrypts images and rewrites links.
+        let out = s.export_markdown(tmp.path()).unwrap();
+        let md = fs::read_to_string(out.join("2026-10-25.md")).unwrap();
+        assert!(md.contains(&format!("](attachments/{used}.png)")));
+        assert_eq!(fs::read(out.join(format!("attachments/{used}.png"))).unwrap(), PNG);
     }
 
     #[test]

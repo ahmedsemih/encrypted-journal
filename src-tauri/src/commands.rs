@@ -210,3 +210,30 @@ pub fn export_backup(state: State<'_, AppState>, path: PathBuf) -> AppResult<()>
 pub fn auto_backup(state: State<'_, AppState>, dir: PathBuf, keep: usize) -> AppResult<String> {
     with_session(&state, |s| Ok(s.auto_backup(&dir, keep)?.to_string_lossy().into_owned()))
 }
+
+// ---------- attachments ----------
+
+/// Stores an image sent as the raw request body (pasted from the clipboard).
+#[tauri::command]
+pub fn add_attachment(state: State<'_, AppState>, request: tauri::ipc::Request<'_>) -> AppResult<String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err(AppError::Invalid("unsupportedImage"));
+    };
+    with_session(&state, |s| s.add_attachment(bytes))
+}
+
+/// Stores an image file picked in a dialog or dropped onto the window.
+#[tauri::command]
+pub fn add_attachment_file(state: State<'_, AppState>, path: PathBuf) -> AppResult<String> {
+    if std::fs::metadata(&path)?.len() > crate::attachments::MAX_BYTES as u64 {
+        return Err(AppError::Invalid("attachmentTooLarge"));
+    }
+    let bytes = Zeroizing::new(std::fs::read(&path)?);
+    with_session(&state, |s| s.add_attachment(&bytes))
+}
+
+/// Returns the decrypted image as raw bytes (an ArrayBuffer in the frontend).
+#[tauri::command]
+pub fn get_attachment(state: State<'_, AppState>, id: String) -> AppResult<tauri::ipc::Response> {
+    with_session(&state, |s| Ok(tauri::ipc::Response::new(s.read_attachment(&id)?.to_vec())))
+}

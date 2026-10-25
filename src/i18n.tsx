@@ -63,6 +63,10 @@ const tr = {
     saveFailed: (e: string) => `Kaydedilemedi: ${e}`,
     addTag: "Etiket ekle…",
     removeTag: (t: string) => `${t} etiketini kaldır`,
+    addingImage: "Resim şifreleniyor…",
+    dropImages: "Resimleri eklemek için bırakın",
+    imageMissing: "Resim bulunamadı",
+    imageFilter: "Resimler",
   },
 
   formats: {
@@ -81,6 +85,7 @@ const tr = {
     hr: "Ayraç",
     indent: "Girinti",
     outdent: "Girintiyi azalt",
+    image: "Resim ekle",
   } satisfies Record<FormatKind, string>,
 
   placeholders: {
@@ -220,6 +225,8 @@ const tr = {
     unsupportedBackup: "Desteklenmeyen yedek dosyası",
     corruptBackup: "Yedek dosyası bozuk",
     backupUserExists: "Bu kullanıcı zaten mevcut. Önce mevcut hesabı silin.",
+    attachmentTooLarge: "Resim çok büyük (en fazla 25 MB)",
+    unsupportedImage: "Desteklenmeyen dosya: yalnızca PNG, JPEG, GIF ve WebP eklenebilir",
     io: "Dosya hatası",
     data: "Veri hatası",
     internal: "Dahili hata",
@@ -284,6 +291,10 @@ const en: Dict = {
     saveFailed: (e) => `Could not save: ${e}`,
     addTag: "Add tag…",
     removeTag: (t) => `Remove tag ${t}`,
+    addingImage: "Encrypting image…",
+    dropImages: "Drop images to add them",
+    imageMissing: "Image not found",
+    imageFilter: "Images",
   },
 
   formats: {
@@ -302,6 +313,7 @@ const en: Dict = {
     hr: "Divider",
     indent: "Indent",
     outdent: "Outdent",
+    image: "Insert image",
   },
 
   placeholders: {
@@ -441,6 +453,8 @@ const en: Dict = {
     unsupportedBackup: "Unsupported backup file",
     corruptBackup: "The backup file is corrupt",
     backupUserExists: "This user already exists. Delete the existing account first.",
+    attachmentTooLarge: "Image is too large (25 MB max)",
+    unsupportedImage: "Unsupported file: only PNG, JPEG, GIF and WebP can be added",
     io: "File error",
     data: "Data error",
     internal: "Internal error",

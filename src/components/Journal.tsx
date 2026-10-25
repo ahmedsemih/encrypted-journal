@@ -5,6 +5,7 @@ import { api } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { today } from "../dates";
 import * as history from "../history";
+import { clearAttachmentCache } from "../attachments";
 import type { Entry, EntryMeta, Settings } from "../types";
 import { Editor } from "./Editor";
 import { EntryList } from "./EntryList";
@@ -74,8 +75,14 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
     await flushRef.current?.();
   }, []);
 
-  // Undo history must not outlive the unlocked session.
-  useEffect(() => () => history.clearAll(), []);
+  // Undo history and decrypted images must not outlive the unlocked session.
+  useEffect(
+    () => () => {
+      history.clearAll();
+      clearAttachmentCache();
+    },
+    [],
+  );
 
   useEffect(() => {
     Promise.all([api.listEntries(), api.listTrash()])

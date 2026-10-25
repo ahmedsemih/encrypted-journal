@@ -1,3 +1,4 @@
+mod attachments;
 mod commands;
 mod crypto;
 mod entry;
@@ -45,6 +46,9 @@ pub fn run() {
             commands::empty_trash,
             commands::list_trash,
             commands::auto_backup,
+            commands::add_attachment,
+            commands::add_attachment_file,
+            commands::get_attachment,
             commands::search_entries,
             commands::get_settings,
             commands::save_settings,

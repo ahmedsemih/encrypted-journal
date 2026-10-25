@@ -1,5 +1,8 @@
-import { KeyboardEvent, RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ClipboardEvent, KeyboardEvent, RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api } from "../api";
+import { IMAGE_EXTENSIONS, imageMarkdown, isImagePath } from "../attachments";
 import { errorText, useI18n } from "../i18n";
 import { formatLong } from "../dates";
 import type { EditorView, Entry, EntryInput, EntryMeta, Settings } from "../types";
@@ -58,6 +61,9 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState(entry.updatedAt);
+  const [addingImages, setAddingImages] = useState(0);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const pendingSelection = useRef<[number, number] | null>(null);
@@ -166,7 +172,81 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
     }
   };
 
+  /** Inserts text at the caret (or the end) on its own line. */
+  const insertBlock = (snippet: string) => {
+    const body = draftRef.current.body;
+    const ta = textRef.current;
+    const at = ta && document.activeElement === ta ? ta.selectionEnd : body.length;
+    const before = at > 0 && body[at - 1] !== "\n" ? "\n" : "";
+    const after = body[at] === "\n" ? "" : "\n";
+    const text = before + snippet + after;
+    if (ta) pendingSelection.current = [at + text.length, at + text.length];
+    update({ body: body.slice(0, at) + text + body.slice(at) });
+  };
+
+  /** Encrypts images one by one and inserts a Markdown reference for each. */
+  const addImages = async (sources: { name: string; add: () => Promise<string> }[]) => {
+    if (!sources.length) return;
+    setImageError(null);
+    setAddingImages((n) => n + sources.length);
+    const snippets: string[] = [];
+    for (const src of sources) {
+      try {
+        snippets.push(imageMarkdown(await src.add(), src.name));
+      } catch (e) {
+        setImageError(errorText(tRef.current, e));
+      } finally {
+        setAddingImages((n) => n - 1);
+      }
+    }
+    if (snippets.length && !doneRef.current) insertBlock(snippets.join("\n"));
+  };
+
+  const addImagePaths = (paths: string[]) =>
+    addImages(
+      paths.filter(isImagePath).map((path) => ({
+        name: path.split(/[\\/]/).pop() ?? "",
+        add: () => api.addAttachmentFile(path),
+      })),
+    );
+
+  const pickImages = async () => {
+    const picked = await open({ multiple: true, filters: [{ name: t.editor.imageFilter, extensions: IMAGE_EXTENSIONS }] });
+    if (picked) await addImagePaths(Array.isArray(picked) ? picked : [picked]);
+  };
+
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return;
+    e.preventDefault();
+    void addImages(
+      files.map((f) => ({ name: f.name, add: async () => api.addAttachment(new Uint8Array(await f.arrayBuffer())) })),
+    );
+  };
+
+  // Files dropped onto the window arrive as paths through Tauri, not as DOM drop events.
+  const addImagePathsRef = useRef(addImagePaths);
+  addImagePathsRef.current = addImagePaths;
+  useEffect(() => {
+    const unlisten = getCurrentWebview().onDragDropEvent((event) => {
+      const { type } = event.payload;
+      if (type === "enter" || type === "over") setDragging(true);
+      else if (type === "leave") setDragging(false);
+      else if (type === "drop") {
+        setDragging(false);
+        void addImagePathsRef.current(event.payload.paths);
+      }
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+
   const format = (kind: FormatKind) => {
+    if (kind === "image") {
+      void pickImages();
+      return;
+    }
     const ta = textRef.current;
     if (!ta) return;
     if (view === "preview") setView("edit");
@@ -315,6 +395,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
       )}
 
       <div className={`editor-body view-${view}`}>
+        {dragging && <div className="drop-overlay">🖼 {t.editor.dropImages}</div>}
         {view !== "preview" && (
           <textarea
             ref={textRef}
@@ -324,6 +405,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
             spellCheck={settings.spellcheck}
             onChange={(e) => update({ body: e.target.value }, "body")}
             onKeyDown={onBodyKey}
+            onPaste={onPaste}
             onBlur={() => void save()}
           />
         )}
@@ -339,6 +421,12 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
         <span>{t.editor.chars(draft.body.length)}</span>
         <span>{t.editor.readTime(readMinutes)}</span>
         <span className="spacer" />
+        {addingImages > 0 && <span>{t.editor.addingImage}</span>}
+        {imageError && (
+          <span className="save-state error" onClick={() => setImageError(null)}>
+            {imageError}
+          </span>
+        )}
         <span title={t.editor.created(formatTime(entry.createdAt, locale))}>
           {t.editor.lastEdited(formatTime(updatedAt, locale))}
         </span>
