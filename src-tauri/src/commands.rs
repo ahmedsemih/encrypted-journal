@@ -8,7 +8,7 @@ use serde_json::Value;
 use tauri::State;
 use zeroize::Zeroizing;
 
-use crate::entry::{Entry, EntryInput, EntryMeta};
+use crate::entry::{Entry, EntryInput, EntryMeta, EntryTemplate};
 use crate::error::{AppError, AppResult};
 use crate::vault::{self, Session};
 use crate::AppState;
@@ -91,6 +91,44 @@ pub async fn change_password(
     blocking(move || vault::change_password(&root, &username, &current, &new)).await
 }
 
+// ---------- recovery key ----------
+
+#[tauri::command]
+pub async fn create_recovery_key(state: State<'_, AppState>, password: String) -> AppResult<String> {
+    let username = current_username(&state)?;
+    let root = state.data_root.clone();
+    let password = Zeroizing::new(password);
+    // The key is shown once; the copy that crosses IPC cannot be zeroized.
+    blocking(move || Ok(vault::create_recovery_key(&root, &username, &password)?.to_string())).await
+}
+
+#[tauri::command]
+pub async fn remove_recovery_key(state: State<'_, AppState>, password: String) -> AppResult<()> {
+    let username = current_username(&state)?;
+    let root = state.data_root.clone();
+    let password = Zeroizing::new(password);
+    blocking(move || vault::remove_recovery_key(&root, &username, &password)).await
+}
+
+/// Creation time of the current recovery key, or null when there is none.
+#[tauri::command]
+pub fn recovery_status(state: State<'_, AppState>) -> AppResult<Option<String>> {
+    with_session(&state, |s| s.recovery_created_at())
+}
+
+#[tauri::command]
+pub async fn reset_password(
+    state: State<'_, AppState>,
+    username: String,
+    recovery_key: String,
+    new_password: String,
+) -> AppResult<SessionInfo> {
+    let root = state.data_root.clone();
+    let (key, password) = (Zeroizing::new(recovery_key), Zeroizing::new(new_password));
+    let session = blocking(move || vault::reset_password(&root, &username, &key, &password)).await?;
+    start_session(&state, session)
+}
+
 #[tauri::command]
 pub async fn delete_account(state: State<'_, AppState>, password: String) -> AppResult<()> {
     let username = current_username(&state)?;
@@ -122,9 +160,12 @@ pub fn get_entry(state: State<'_, AppState>, id: String) -> AppResult<Entry> {
 }
 
 #[tauri::command]
-pub fn create_entry(state: State<'_, AppState>, date: String) -> AppResult<Entry> {
+pub fn create_entry(state: State<'_, AppState>, date: String, template: Option<EntryTemplate>) -> AppResult<Entry> {
     with_session(&state, |s| {
-        let entry = Entry::new(&date)?;
+        let entry = match &template {
+            Some(t) => Entry::from_template(&date, t)?,
+            None => Entry::new(&date)?,
+        };
         s.save_entry(entry.clone())?;
         Ok(entry)
     })

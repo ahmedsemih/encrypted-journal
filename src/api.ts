@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { storedLanguage } from "./prefs";
-import type { AppStatus, Entry, EntryInput, EntryMeta, Settings } from "./types";
+import type { AppStatus, Entry, EntryInput, EntryMeta, EntryTemplate, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 
 export const api = {
@@ -13,11 +13,16 @@ export const api = {
   changePassword: (currentPassword: string, newPassword: string) =>
     invoke<void>("change_password", { currentPassword, newPassword }),
   deleteAccount: (password: string) => invoke<void>("delete_account", { password }),
+  createRecoveryKey: (password: string) => invoke<string>("create_recovery_key", { password }),
+  removeRecoveryKey: (password: string) => invoke<void>("remove_recovery_key", { password }),
+  recoveryStatus: () => invoke<string | null>("recovery_status"),
+  resetPassword: (username: string, recoveryKey: string, newPassword: string) =>
+    invoke<{ username: string }>("reset_password", { username, recoveryKey, newPassword }),
   importBackup: (path: string) => invoke<void>("import_backup", { path }),
 
   listEntries: () => invoke<EntryMeta[]>("list_entries"),
   getEntry: (id: string) => invoke<Entry>("get_entry", { id }),
-  createEntry: (date: string) => invoke<Entry>("create_entry", { date }),
+  createEntry: (date: string, template?: EntryTemplate) => invoke<Entry>("create_entry", { date, template }),
   saveEntry: (input: EntryInput) => invoke<EntryMeta>("save_entry", { input }),
   listTrash: () => invoke<EntryMeta[]>("list_trash"),
   trashEntry: (id: string) => invoke<EntryMeta>("trash_entry", { id }),

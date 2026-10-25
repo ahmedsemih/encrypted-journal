@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { currentStreak, today } from "../dates";
 import { useI18n } from "../i18n";
-import type { EntryMeta } from "../types";
+import type { EntryMeta, Template } from "../types";
 import { Calendar } from "./Calendar";
 import type { Filters, Section } from "./Journal";
 
@@ -15,7 +15,10 @@ interface Props {
   onFilters: (f: Filters | ((f: Filters) => Filters)) => void;
   onSection: (s: Section) => void;
   onSelect: (id: string) => void;
-  onNew: () => void;
+  onNew: (templateId?: string | null) => void;
+  templates: Template[];
+  defaultTemplateId: string | null;
+  onManageTemplates: () => void;
   onLock: () => void;
   onSettings: () => void;
 }
@@ -32,10 +35,18 @@ export function Sidebar(props: Props) {
     onSection,
     onSelect,
     onNew,
+    templates,
+    defaultTemplateId,
+    onManageTemplates,
     onLock,
     onSettings,
   } = props;
   const inTrash = section === "trash";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pick = (id: string | null) => {
+    setMenuOpen(false);
+    onNew(id);
+  };
   const inEntries = section === "entries";
   const { t, locale } = useI18n();
   const dates = useMemo(() => new Set(metas.map((m) => m.date)), [metas]);
@@ -74,9 +85,43 @@ export function Sidebar(props: Props) {
         </button>
       </div>
 
-      <button className="primary block" onClick={onNew}>
-        {t.sidebar.newEntry}
-      </button>
+      <div className="new-entry">
+        <button className="primary" onClick={() => onNew()}>
+          {t.sidebar.newEntry}
+        </button>
+        <button
+          className="primary menu-toggle"
+          aria-label={t.templates.choose}
+          title={t.templates.choose}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          ▾
+        </button>
+        {menuOpen && (
+          <>
+            <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
+            <div className="menu" role="menu">
+              {[{ id: null, name: t.templates.blank }, ...templates].map((tpl) => (
+                <button key={tpl.id ?? "blank"} role="menuitem" onClick={() => pick(tpl.id)}>
+                  {tpl.name || t.untitled}
+                  {tpl.id === defaultTemplateId && <span className="badge">{t.templates.isDefault}</span>}
+                </button>
+              ))}
+              <hr />
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onManageTemplates();
+                }}
+              >
+                {t.templates.manage}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
 
       <Calendar marked={dates} selected={filters.day} onSelect={(day) => onFilters((f) => ({ ...f, day }))} />
 

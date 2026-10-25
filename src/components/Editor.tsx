@@ -61,6 +61,8 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState(entry.updatedAt);
+  const updatedAtRef = useRef(entry.updatedAt);
+  updatedAtRef.current = updatedAt;
   const [addingImages, setAddingImages] = useState(0);
   const [imageError, setImageError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -97,7 +99,9 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
   useEffect(() => {
     flushRef.current = async () => {
       if (doneRef.current) return;
-      if (isEmpty(draftRef.current)) {
+      // Never saved since creation: a blank or untouched template entry.
+      const neverEdited = !dirtyRef.current && updatedAtRef.current === entry.createdAt;
+      if (isEmpty(draftRef.current) || neverEdited) {
         doneRef.current = true;
         await callbacks.current.onDiscard(draftRef.current.id);
         return;
@@ -109,7 +113,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
       // Last-chance save if we unmount without an explicit flush.
       void save();
     };
-  }, [flushRef, save]);
+  }, [flushRef, save, entry.createdAt]);
 
   // Debounced autosave.
   useEffect(() => {

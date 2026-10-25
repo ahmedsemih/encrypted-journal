@@ -27,6 +27,7 @@ use zeroize::Zeroizing;
 
 use crate::attachments;
 use crate::crypto::{self, KdfParams, SecretKey};
+use crate::recovery;
 use crate::entry::{self, Entry};
 use crate::error::{AppError, AppResult};
 
@@ -47,6 +48,7 @@ const BACKUP_EXTENSION: &str = "ejbackup";
 
 const KEY_WRAP_AAD: &[u8] = b"encrypted-journal:vault-key:v1";
 const SETTINGS_AAD: &[u8] = b"encrypted-journal:settings:v1";
+const RECOVERY_WRAP_AAD: &[u8] = b"encrypted-journal:recovery-key:v1";
 
 fn entry_aad(id: &str) -> Vec<u8> {
     format!("encrypted-journal:entry:v1:{id}").into_bytes()
@@ -62,6 +64,17 @@ pub struct VaultHeader {
     pub version: u32,
     pub kdf: KdfParams,
     /// Base64 of the sealed data-encryption key.
+    pub wrapped_key: String,
+    pub created_at: String,
+    /// The same data key wrapped by the recovery key, if one was created.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery: Option<RecoveryWrap>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoveryWrap {
+    pub kdf: KdfParams,
     pub wrapped_key: String,
     pub created_at: String,
 }
@@ -158,7 +171,13 @@ fn wrap_key(dek: &SecretKey, password: &str) -> AppResult<VaultHeader> {
 fn wrap_key_with(dek: &SecretKey, password: &str, kdf: KdfParams) -> AppResult<VaultHeader> {
     let kek = crypto::derive_key(password, &kdf)?;
     let wrapped = crypto::seal(&kek, &dek[..], KEY_WRAP_AAD)?;
-    Ok(VaultHeader { version: VAULT_VERSION, kdf, wrapped_key: B64.encode(wrapped), created_at: entry::now() })
+    Ok(VaultHeader {
+        version: VAULT_VERSION,
+        kdf,
+        wrapped_key: B64.encode(wrapped),
+        created_at: entry::now(),
+        recovery: None,
+    })
 }
 
 fn unwrap_key(header: &VaultHeader, password: &str) -> AppResult<SecretKey> {
@@ -201,7 +220,11 @@ pub fn login(root: &Path, username: &str, password: &str) -> AppResult<Session> 
     let (name, dir) = user_dir(root, username)?;
     let header = read_header(&dir)?;
     let key = unwrap_key(&header, password)?;
-    let mut session = Session { username: name, dir, key, entries: HashMap::new() };
+    open_session(name, dir, key)
+}
+
+fn open_session(username: String, dir: PathBuf, key: SecretKey) -> AppResult<Session> {
+    let mut session = Session { username, dir, key, entries: HashMap::new() };
     session.load_entries()?;
     session.purge_expired_trash();
     session.remove_unused_attachments();
@@ -213,10 +236,61 @@ pub fn change_password(root: &Path, username: &str, current: &str, new: &str) ->
     let (_, dir) = user_dir(root, username)?;
     let header = read_header(&dir)?;
     let dek = unwrap_key(&header, current)?;
-    let mut new_header = wrap_key(&dek, new)?;
-    new_header.created_at = header.created_at;
-    write_atomic(&dir.join(VAULT_FILE), &serde_json::to_vec_pretty(&new_header)?)?;
+    rewrap_password(&dir, header, &dek, new)
+}
+
+/// Replaces the password wrap, keeping the creation date and recovery key.
+fn rewrap_password(dir: &Path, old: VaultHeader, dek: &SecretKey, new_password: &str) -> AppResult<()> {
+    let mut header = wrap_key(dek, new_password)?;
+    header.created_at = old.created_at;
+    header.recovery = old.recovery;
+    write_header(dir, &header)
+}
+
+fn write_header(dir: &Path, header: &VaultHeader) -> AppResult<()> {
+    write_atomic(&dir.join(VAULT_FILE), &serde_json::to_vec_pretty(header)?)?;
     Ok(())
+}
+
+// ---------- recovery key ----------
+
+/// Creates (or replaces) the recovery key and returns it for one-time display.
+pub fn create_recovery_key(root: &Path, username: &str, password: &str) -> AppResult<zeroize::Zeroizing<String>> {
+    let (_, dir) = user_dir(root, username)?;
+    let mut header = read_header(&dir)?;
+    let dek = unwrap_key(&header, password)?;
+    let code = recovery::generate();
+    let canonical = recovery::normalize(&code).ok_or(AppError::Crypto)?;
+    let kdf = KdfParams::generate();
+    let kek = crypto::derive_key(&canonical, &kdf)?;
+    let wrapped = crypto::seal(&kek, &dek[..], RECOVERY_WRAP_AAD)?;
+    header.recovery = Some(RecoveryWrap { kdf, wrapped_key: B64.encode(wrapped), created_at: entry::now() });
+    write_header(&dir, &header)?;
+    Ok(code)
+}
+
+pub fn remove_recovery_key(root: &Path, username: &str, password: &str) -> AppResult<()> {
+    let (_, dir) = user_dir(root, username)?;
+    let mut header = read_header(&dir)?;
+    unwrap_key(&header, password)?;
+    header.recovery = None;
+    write_header(&dir, &header)
+}
+
+/// Sets a new password using the recovery key and unlocks the vault.
+pub fn reset_password(root: &Path, username: &str, recovery_key: &str, new_password: &str) -> AppResult<Session> {
+    validate_password(new_password)?;
+    let invalid = || AppError::Invalid("invalidRecoveryKey");
+    let (name, dir) = user_dir(root, username)?;
+    let header = read_header(&dir).map_err(|_| invalid())?;
+    let wrap = header.recovery.as_ref().ok_or_else(invalid)?;
+    let canonical = recovery::normalize(recovery_key).ok_or_else(invalid)?;
+    let kek = crypto::derive_key(&canonical, &wrap.kdf)?;
+    let wrapped = B64.decode(&wrap.wrapped_key).map_err(|_| AppError::Crypto)?;
+    let raw = crypto::open(&kek, &wrapped, RECOVERY_WRAP_AAD).map_err(|_| invalid())?;
+    let dek = crypto::key_from_slice(&raw)?;
+    rewrap_password(&dir, header, &dek, new_password)?;
+    open_session(name, dir, dek)
 }
 
 pub fn delete_account(root: &Path, username: &str, password: &str) -> AppResult<()> {
@@ -277,6 +351,11 @@ pub fn import_backup(root: &Path, path: &Path) -> AppResult<()> {
 // ---------- unlocked session ----------
 
 impl Session {
+    /// When the current recovery key was created, if there is one.
+    pub fn recovery_created_at(&self) -> AppResult<Option<String>> {
+        Ok(read_header(&self.dir)?.recovery.map(|r| r.created_at))
+    }
+
     fn entry_path(&self, id: &str) -> PathBuf {
         self.dir.join(ENTRIES_DIR).join(format!("{id}{ENTRY_SUFFIX}"))
     }
@@ -715,6 +794,34 @@ mod tests {
         let md = fs::read_to_string(out.join("2026-10-25.md")).unwrap();
         assert!(md.contains(&format!("](attachments/{used}.png)")));
         assert_eq!(fs::read(out.join(format!("attachments/{used}.png"))).unwrap(), PNG);
+    }
+
+    #[test]
+    fn recovery_key_resets_password_and_survives_password_change() {
+        let (tmp, mut s) = setup();
+        let e = Entry::new("2026-10-25").unwrap();
+        let id = e.id.clone();
+        s.save_entry(e).unwrap();
+
+        assert!(matches!(
+            reset_password(tmp.path(), "ahmet", "AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA", "yeniparola1"),
+            Err(AppError::Invalid("invalidRecoveryKey"))
+        ));
+        assert!(create_recovery_key(tmp.path(), "ahmet", "yanlis-parola").is_err());
+        let code = create_recovery_key(tmp.path(), "ahmet", "parola123").unwrap();
+        assert!(s.recovery_created_at().unwrap().is_some());
+
+        // A password change keeps the recovery key working.
+        change_password(tmp.path(), "ahmet", "parola123", "ikinciparola").unwrap();
+        let restored = reset_password(tmp.path(), "ahmet", &code.to_lowercase(), "ucuncuparola").unwrap();
+        assert!(restored.entries.contains_key(&id));
+        assert!(login(tmp.path(), "ahmet", "ikinciparola").is_err());
+        assert!(login(tmp.path(), "ahmet", "ucuncuparola").is_ok());
+
+        // Wrong key, other user, and a removed key all fail the same way.
+        assert!(reset_password(tmp.path(), "baskasi", &code, "dorduncuparola").is_err());
+        remove_recovery_key(tmp.path(), "ahmet", "ucuncuparola").unwrap();
+        assert!(reset_password(tmp.path(), "ahmet", &code, "dorduncuparola").is_err());
     }
 
     #[test]

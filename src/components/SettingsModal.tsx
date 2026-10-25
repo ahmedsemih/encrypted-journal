@@ -4,6 +4,8 @@ import { api } from "../api";
 import { today } from "../dates";
 import { errorText, LANGUAGES, useI18n, type Language } from "../i18n";
 import type { AutoBackup, EditorView, Settings, Theme } from "../types";
+import { RecoveryKeyDialog } from "./RecoveryKeyDialog";
+import { TemplatesEditor } from "./TemplatesEditor";
 
 interface Props {
   username: string;
@@ -12,24 +14,53 @@ interface Props {
   onClose: () => void;
   onAccountDeleted: () => void;
   onBackupNow: () => Promise<void>;
+  initialTab?: Tab;
   flush: () => Promise<void>;
 }
 
-type Tab = "appearance" | "security" | "data";
+export type Tab = "appearance" | "templates" | "security" | "data";
 
-export function SettingsModal({ username, settings, onChange, onClose, onAccountDeleted, onBackupNow, flush }: Props) {
+export function SettingsModal(props: Props) {
+  const { username, settings, onChange, onClose, onAccountDeleted, onBackupNow, flush, initialTab } = props;
   const { t, locale } = useI18n();
-  const [tab, setTab] = useState<Tab>("appearance");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "appearance");
   const [message, setMessage] = useState<{ kind: "error" | "notice"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [deletePw, setDeletePw] = useState("");
+  const [newRecoveryKey, setNewRecoveryKey] = useState<string | null>(null);
+  /** undefined while loading, null when no recovery key exists. */
+  const [recoveryAt, setRecoveryAt] = useState<string | null | undefined>(undefined);
+  const [recoveryPw, setRecoveryPw] = useState("");
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    api.recoveryStatus().then(setRecoveryAt, () => setRecoveryAt(null));
+  }, []);
+
+  const createRecovery = (e: FormEvent) => {
+    e.preventDefault();
+    run(async () => {
+      setNewRecoveryKey(await api.createRecoveryKey(recoveryPw));
+      setRecoveryPw("");
+      setRecoveryAt(await api.recoveryStatus());
+      return null;
+    });
+  };
+
+  const removeRecovery = () =>
+    run(async () => {
+      await api.removeRecoveryKey(recoveryPw);
+      setRecoveryPw("");
+      setRecoveryAt(null);
+      return t.recovery.removed;
+    });
+
+  useEffect(() => {
+    // Never close while a new recovery key is on screen: it is shown only once.
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !newRecoveryKey && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, newRecoveryKey]);
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value }).catch((e) => setMessage({ kind: "error", text: errorText(t, e) }));
@@ -127,7 +158,7 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
           </button>
         </header>
         <div className="segmented">
-          {(["appearance", "security", "data"] as const).map((id) => (
+          {(["appearance", "templates", "security", "data"] as const).map((id) => (
             <button
               key={id}
               className={tab === id ? "active" : ""}
@@ -186,16 +217,25 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
               </label>
               <label className="field row checkbox">
                 <span>{t.settings.spellcheck}</span>
-                <input type="checkbox" checked={settings.spellcheck} onChange={(e) => set("spellcheck", e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={settings.spellcheck}
+                  onChange={(e) => set("spellcheck", e.target.checked)}
+                />
               </label>
             </>
           )}
+
+          {tab === "templates" && <TemplatesEditor settings={settings} onChange={onChange} />}
 
           {tab === "security" && (
             <>
               <label className="field row">
                 <span>{t.settings.autoLock}</span>
-                <select value={settings.autoLockMinutes} onChange={(e) => set("autoLockMinutes", Number(e.target.value))}>
+                <select
+                  value={settings.autoLockMinutes}
+                  onChange={(e) => set("autoLockMinutes", Number(e.target.value))}
+                >
                   <option value={0}>{t.settings.autoLockOff}</option>
                   {[1, 5, 10, 15, 30, 60].map((n) => (
                     <option key={n} value={n}>
@@ -212,11 +252,62 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
                   onChange={(e) => set("lockOnSystemLock", e.target.checked)}
                 />
               </label>
+              <form className="sub-form" onSubmit={createRecovery}>
+                <h3>{t.recovery.title}</h3>
+                <p className="muted small">
+                  {recoveryAt === undefined
+                    ? "…"
+                    : recoveryAt
+                      ? t.recovery.active(new Date(recoveryAt).toLocaleDateString(locale))
+                      : t.recovery.none}
+                </p>
+                {recoveryAt && <p className="muted small">{t.recovery.regenerateNote}</p>}
+                <input
+                  type="password"
+                  placeholder={t.recovery.password}
+                  value={recoveryPw}
+                  autoComplete="current-password"
+                  onChange={(e) => setRecoveryPw(e.target.value)}
+                  required
+                />
+                <div className="button-group">
+                  <button className="primary" disabled={busy}>
+                    {recoveryAt ? t.recovery.regenerate : t.recovery.create}
+                  </button>
+                  {recoveryAt && (
+                    <button type="button" disabled={busy || !recoveryPw} onClick={removeRecovery}>
+                      {t.recovery.remove}
+                    </button>
+                  )}
+                </div>
+              </form>
               <form className="sub-form" onSubmit={changePassword}>
                 <h3>{t.settings.changePassword}</h3>
-                <input type="password" placeholder={t.settings.currentPassword} value={pw.current} autoComplete="current-password" onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
-                <input type="password" placeholder={t.settings.newPassword} value={pw.next} autoComplete="new-password" minLength={8} onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
-                <input type="password" placeholder={t.settings.newPasswordRepeat} value={pw.confirm} autoComplete="new-password" onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
+                <input
+                  type="password"
+                  placeholder={t.settings.currentPassword}
+                  value={pw.current}
+                  autoComplete="current-password"
+                  onChange={(e) => setPw({ ...pw, current: e.target.value })}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder={t.settings.newPassword}
+                  value={pw.next}
+                  autoComplete="new-password"
+                  minLength={8}
+                  onChange={(e) => setPw({ ...pw, next: e.target.value })}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder={t.settings.newPasswordRepeat}
+                  value={pw.confirm}
+                  autoComplete="new-password"
+                  onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+                  required
+                />
                 <button className="primary" disabled={busy}>
                   {busy ? t.settings.working : t.settings.changePassword}
                 </button>
@@ -235,7 +326,9 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
                     {settings.autoBackup.dir ?? t.backup.off}
                   </span>
                   <div className="button-group">
-                    <button onClick={chooseBackupDir}>{settings.autoBackup.dir ? t.backup.change : t.backup.choose}</button>
+                    <button onClick={chooseBackupDir}>
+                      {settings.autoBackup.dir ? t.backup.change : t.backup.choose}
+                    </button>
                     {settings.autoBackup.dir && (
                       <button onClick={() => setBackup({ dir: null })}>{t.backup.disable}</button>
                     )}
@@ -258,7 +351,10 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
                     </label>
                     <label className="field row">
                       <span>{t.backup.keep}</span>
-                      <select value={settings.autoBackup.keep} onChange={(e) => setBackup({ keep: Number(e.target.value) })}>
+                      <select
+                        value={settings.autoBackup.keep}
+                        onChange={(e) => setBackup({ keep: Number(e.target.value) })}
+                      >
                         {[3, 5, 10, 20, 30].map((n) => (
                           <option key={n} value={n}>
                             {t.backup.keepN(n)}
@@ -300,7 +396,13 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
               <form className="sub-form danger-zone" onSubmit={deleteAccount}>
                 <h3>{t.settings.deleteTitle}</h3>
                 <p className="muted small">{t.settings.deleteInfo}</p>
-                <input type="password" placeholder={t.settings.deletePassword} value={deletePw} onChange={(e) => setDeletePw(e.target.value)} required />
+                <input
+                  type="password"
+                  placeholder={t.settings.deletePassword}
+                  value={deletePw}
+                  onChange={(e) => setDeletePw(e.target.value)}
+                  required
+                />
                 <button className="danger" disabled={busy}>
                   {t.settings.deleteTitle}
                 </button>
@@ -311,6 +413,7 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
           {message && <p className={message.kind}>{message.text}</p>}
         </div>
       </div>
+      {newRecoveryKey && <RecoveryKeyDialog code={newRecoveryKey} onDone={() => setNewRecoveryKey(null)} />}
     </div>
   );
 }

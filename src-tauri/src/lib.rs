@@ -3,6 +3,7 @@ mod commands;
 mod crypto;
 mod entry;
 mod error;
+mod recovery;
 mod syslock;
 mod vault;
 
@@ -34,6 +35,10 @@ pub fn run() {
             commands::login,
             commands::lock,
             commands::change_password,
+            commands::create_recovery_key,
+            commands::remove_recovery_key,
+            commands::recovery_status,
+            commands::reset_password,
             commands::delete_account,
             commands::import_backup,
             commands::list_entries,

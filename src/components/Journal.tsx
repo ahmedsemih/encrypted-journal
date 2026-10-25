@@ -3,13 +3,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "../api";
 import { errorText, useI18n } from "../i18n";
+import { instantiate, templatesOf } from "../templates";
 import { today } from "../dates";
 import * as history from "../history";
 import { clearAttachmentCache } from "../attachments";
 import type { Entry, EntryMeta, Settings } from "../types";
 import { Editor } from "./Editor";
 import { EntryList } from "./EntryList";
-import { SettingsModal } from "./SettingsModal";
+import { SettingsModal, type Tab as SettingsTab } from "./SettingsModal";
 import { Sidebar } from "./Sidebar";
 import { TrashView } from "./TrashView";
 import { StatsView } from "./StatsView";
@@ -53,7 +54,7 @@ function metaOf(e: Entry): EntryMeta {
 }
 
 export function Journal({ username, settings, onSettingsChange, onLock, onAccountDeleted }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [metas, setMetas] = useState<EntryMeta[]>([]);
   const [trash, setTrash] = useState<EntryMeta[]>([]);
   const [section, setSection] = useState<Section>("entries");
@@ -62,7 +63,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [trashSelectedId, setTrashSelectedId] = useState<string | null>(null);
   const [entry, setEntry] = useState<Entry | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState<SettingsTab | false>(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   /** Saves the open editor (and drops it if left empty). Set by the Editor. */
@@ -172,19 +173,27 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
     await onLock();
   }, [flush, onLock]);
 
-  const newEntry = useCallback(async () => {
-    try {
-      await flush();
-      const e = await api.createEntry(filters.day ?? today());
-      setMetas((prev) => sortMetas([metaOf(e), ...prev]));
-      setFilters((f) => ({ ...NO_FILTERS, day: f.day }));
-      setSection("entries");
-      setEntry(e);
-      setSelectedId(e.id);
-    } catch (err) {
-      showError(err);
-    }
-  }, [flush, filters.day, showError]);
+  /** `templateId` undefined uses the default template, null a blank entry. */
+  const newEntry = useCallback(
+    async (templateId?: string | null) => {
+      try {
+        await flush();
+        const current = settingsRef.current;
+        const id = templateId === undefined ? current.defaultTemplateId : templateId;
+        const template = id ? templatesOf(current, t).find((tpl) => tpl.id === id) : undefined;
+        const date = filters.day ?? today();
+        const e = await api.createEntry(date, template && instantiate(template, date, locale));
+        setMetas((prev) => sortMetas([metaOf(e), ...prev]));
+        setFilters((f) => ({ ...NO_FILTERS, day: f.day }));
+        setSection("entries");
+        setEntry(e);
+        setSelectedId(e.id);
+      } catch (err) {
+        showError(err);
+      }
+    },
+    [flush, filters.day, showError, t, locale],
+  );
 
   const onSaved = useCallback((meta: EntryMeta) => {
     setMetas((prev) => sortMetas(prev.map((m) => (m.id === meta.id ? meta : m))));
@@ -368,7 +377,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
         lock();
       } else if (key === ",") {
         e.preventDefault();
-        setShowSettings(true);
+        setShowSettings("appearance");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -409,7 +418,10 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
           }}
           onNew={newEntry}
           onLock={lock}
-          onSettings={() => setShowSettings(true)}
+          onSettings={() => setShowSettings("appearance")}
+          templates={templatesOf(settings, t)}
+          defaultTemplateId={settings.defaultTemplateId}
+          onManageTemplates={() => setShowSettings("templates")}
         />
         <main className="stats-pane">
           <StatsView metas={metas} onPickDay={pickDay} />
@@ -422,6 +434,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
             onClose={() => setShowSettings(false)}
             onAccountDeleted={onAccountDeleted}
             onBackupNow={() => runAutoBackup(true)}
+            initialTab={showSettings || undefined}
             flush={flush}
           />
         )}
@@ -446,7 +459,10 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
         onSelect={(id) => void openSection("entries").then(() => select(id))}
         onNew={newEntry}
         onLock={lock}
-        onSettings={() => setShowSettings(true)}
+        onSettings={() => setShowSettings("appearance")}
+        templates={templatesOf(settings, t)}
+        defaultTemplateId={settings.defaultTemplateId}
+        onManageTemplates={() => setShowSettings("templates")}
       />
       <EntryList
         section={section}
@@ -480,7 +496,13 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
         )}
         {inTrash ? (
           trashSelectedId ? (
-            <TrashView key={trashSelectedId} id={trashSelectedId} onRestore={restore} onPurge={purge} onError={showError} />
+            <TrashView
+              key={trashSelectedId}
+              id={trashSelectedId}
+              onRestore={restore}
+              onPurge={purge}
+              onError={showError}
+            />
           ) : (
             <div className="empty-state">
               <div className="empty-icon">🗑</div>
@@ -504,7 +526,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
             <div className="empty-icon">📔</div>
             <h2>{metas.length ? t.journal.selectEntry : t.journal.emptyJournal}</h2>
             <p className="muted">{t.journal.emptyHint}</p>
-            <button className="primary" onClick={newEntry}>
+            <button className="primary" onClick={() => newEntry()}>
               {t.journal.newEntry} <kbd>Ctrl+N</kbd>
             </button>
           </div>
@@ -518,6 +540,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
           onClose={() => setShowSettings(false)}
           onAccountDeleted={onAccountDeleted}
           onBackupNow={() => runAutoBackup(true)}
+          initialTab={showSettings || undefined}
           flush={flush}
         />
       )}

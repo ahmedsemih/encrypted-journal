@@ -56,6 +56,16 @@ pub struct EntryInput {
     pub body: String,
 }
 
+/// Initial content for a new entry, taken from a template (placeholders are
+/// already filled in by the frontend).
+#[derive(Deserialize, Zeroize, ZeroizeOnDrop)]
+#[serde(rename_all = "camelCase")]
+pub struct EntryTemplate {
+    pub title: String,
+    pub body: String,
+    pub tags: Vec<String>,
+}
+
 /// Lightweight listing data (no full body).
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -119,6 +129,16 @@ impl Entry {
             deleted_at: None,
             body: String::new(),
         })
+    }
+
+    /// A new entry pre-filled from a template. `updated_at` stays equal to
+    /// `created_at`, which marks the entry as not yet edited by the user.
+    pub fn from_template(date: &str, template: &EntryTemplate) -> AppResult<Self> {
+        let mut entry = Self::new(date)?;
+        entry.title = template.title.trim().chars().take(MAX_TITLE_CHARS).collect();
+        entry.body = template.body.clone();
+        entry.tags = normalize_tags(&template.tags);
+        Ok(entry)
     }
 
     /// Applies user edits, validating and normalizing them.

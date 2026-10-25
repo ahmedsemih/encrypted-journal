@@ -85,7 +85,7 @@ export function EntryList(props: Props) {
             value={filters.query}
             onChange={(e) => onQuery(e.target.value)}
           />
-          <button className="primary icon-only" title={t.list.newEntryShortcut} onClick={onNew}>
+          <button className="primary icon-only" title={t.list.newEntryShortcut} onClick={() => onNew()}>
             +
           </button>
         </div>

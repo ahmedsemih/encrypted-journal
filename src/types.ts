@@ -42,7 +42,22 @@ export interface Settings {
   /** Lock when the computer sleeps or the screen locks. */
   lockOnSystemLock: boolean;
   autoBackup: AutoBackup;
+  /** null until the user edits templates; the localized built-ins are used meanwhile. */
+  templates: Template[] | null;
+  /** Template used by Ctrl+N and the "New entry" button; null means blank. */
+  defaultTemplateId: string | null;
 }
+
+export interface Template {
+  id: string;
+  name: string;
+  title: string;
+  body: string;
+  tags: string[];
+}
+
+/** What the backend receives: a template with placeholders already filled. */
+export type EntryTemplate = Pick<Template, "title" | "body" | "tags">;
 
 export interface AutoBackup {
   /** Target folder; null disables automatic backups. */
@@ -60,6 +75,8 @@ export const DEFAULT_SETTINGS: Omit<Settings, "language"> = {
   defaultView: "edit",
   lockOnSystemLock: true,
   autoBackup: { dir: null, intervalHours: 24, keep: 10, lastAt: null },
+  templates: null,
+  defaultTemplateId: null,
 };
 
 export interface AppStatus {

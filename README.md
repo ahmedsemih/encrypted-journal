@@ -18,6 +18,8 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 📊 İstatistikler: yazma takvimi, aylık ruh hali, kelime sayısı, etiketler, yazma saatleri (her grafik tablo olarak da görülebilir)
 - 🔒 Hareketsizlikte otomatik kilit, manuel kilit (Ctrl+L); bilgisayar uykuya geçince (tüm platformlar) veya ekran kilitlenince (Linux) kilit
 - 🔑 Parola değiştirme (kayıtlar yeniden şifrelenmeden)
+- 🗝 Kurtarma anahtarı: hesap oluştururken bir kez gösterilir; parola unutulursa yeni parola belirlemenin tek yolu
+- 📝 Şablonlar: hazır ve kişisel şablonlar, `{{date}}` / `{{weekday}}` / `{{time}}` alanları, varsayılan şablon
 - 📦 Şifreli tek dosya yedek alma / geri yükleme
 - 📤 Şifresiz Markdown olarak dışa aktarma (uyarı ile)
 - 🌗 Açık / koyu / sistem teması
@@ -45,6 +47,7 @@ her kayıt (Markdown) ──XChaCha20-Poly1305(DEK, AAD=kayıt kimliği)──�
 ```
 
 - **İki katmanlı anahtar**: Parola değiştiğinde yalnızca DEK yeniden sarılır; kayıtlar yeniden şifrelenmez.
+- **Kurtarma anahtarı**: 160-bit rastgele bir sır (Crockford Base32, 32 karakter). DEK, Argon2id ile bu sırdan türetilen anahtarla ikinci kez sarılır; parola ile kurtarma anahtarından herhangi biri kasayı açar.
 - **Doğrulanmış şifreleme**: Değiştirilmiş veya başka dosyayla yer değiştirilmiş kayıtlar reddedilir (AAD = kayıt kimliği).
 - **Meta veri gizliliği**: Kullanıcı klasörleri kullanıcı adının SHA-256 özeti, kayıt dosyaları rastgele UUID ile adlandırılır; tarih, başlık, etiket gibi bilgiler de şifreli içeriktedir.
 - **Bellek**: Anahtar ve çözülmüş kayıtlar kilitlendiğinde bellekten silinir (`zeroize`).
@@ -115,6 +118,7 @@ src-tauri/src/
   entry.rs             Kayıt modeli, Markdown/front matter dönüşümü
   vault.rs             Disk düzeni, hesap işlemleri, yedekleme
   attachments.rs       Resim türü tespiti, Markdown referansları
+  recovery.rs          Kurtarma anahtarı üretimi ve doğrulaması
   commands.rs          Tauri komutları
   syslock.rs           Uyku / ekran kilidi algılama
 ```
