@@ -28,7 +28,8 @@ use zeroize::Zeroizing;
 use crate::attachments;
 use crate::crypto::{self, KdfParams, SecretKey};
 use crate::recovery;
-use crate::entry::{self, Entry};
+use crate::entry::{self, Entry, EntryMeta};
+use crate::links;
 use crate::error::{AppError, AppResult};
 
 const USERS_DIR: &str = "users";
@@ -538,25 +539,52 @@ impl Session {
             image_paths.insert(id.to_string(), rel);
         }
 
-        for e in entries {
-            let title = sanitize_file_name(&e.title);
-            let base = if title.is_empty() { e.date.clone() } else { format!("{} {}", e.date, title) };
-            let mut name = format!("{base}.md");
-            let mut n = 2;
-            while !used.insert(name.to_lowercase()) {
-                name = format!("{base} ({n}).md");
-                n += 1;
-            }
+        // Names first, so links between entries can point at the exported files.
+        let names: Vec<String> = entries
+            .iter()
+            .map(|e| {
+                let title = sanitize_file_name(&e.title);
+                let base = if title.is_empty() { e.date.clone() } else { format!("{} {}", e.date, title) };
+                let mut name = format!("{base}.md");
+                let mut n = 2;
+                while !used.insert(name.to_lowercase()) {
+                    name = format!("{base} ({n}).md");
+                    n += 1;
+                }
+                name
+            })
+            .collect();
+        let link_targets: HashMap<&str, String> =
+            entries.iter().zip(&names).map(|(e, name)| (e.id.as_str(), name.replace(' ', "%20"))).collect();
+
+        for (e, name) in entries.iter().zip(&names) {
             let mut markdown = e.to_markdown();
             for (id, rel) in &image_paths {
                 *markdown = markdown.replace(&format!("{}{id}", attachments::SCHEME), rel);
             }
-            fs::write(out.join(&name), markdown.as_bytes())?;
+            for id in links::references(&e.body) {
+                if let Some(target) = link_targets.get(id) {
+                    *markdown = markdown.replace(&format!("{}{id}", links::SCHEME), target);
+                }
+            }
+            fs::write(out.join(name), markdown.as_bytes())?;
         }
         Ok(out)
     }
 
     /// Writes a single-file backup containing the still-encrypted vault.
+    /// Entries (not in the trash) whose body links to `id`, newest first.
+    pub fn backlinks(&self, id: &str) -> Vec<EntryMeta> {
+        let mut metas: Vec<EntryMeta> = self
+            .entries
+            .values()
+            .filter(|e| !e.is_trashed() && e.id != id && links::references(&e.body).any(|r| r == id))
+            .map(Entry::meta)
+            .collect();
+        metas.sort_by(|a, b| b.date.cmp(&a.date).then_with(|| b.created_at.cmp(&a.created_at)));
+        metas
+    }
+
     pub fn export_backup(&self, path: &Path) -> AppResult<()> {
         let header = read_header(&self.dir)?;
         let settings = match fs::read(self.dir.join(SETTINGS_FILE)) {
@@ -794,6 +822,35 @@ mod tests {
         let md = fs::read_to_string(out.join("2026-10-25.md")).unwrap();
         assert!(md.contains(&format!("](attachments/{used}.png)")));
         assert_eq!(fs::read(out.join(format!("attachments/{used}.png"))).unwrap(), PNG);
+    }
+
+    #[test]
+    fn links_between_entries() {
+        let (tmp, mut s) = setup();
+        let mut target = Entry::new("2026-10-20").unwrap();
+        target.title = "Taşınma günü".into();
+        let target_id = target.id.clone();
+        s.save_entry(target).unwrap();
+        let mut linking = Entry::new("2026-10-25").unwrap();
+        linking.title = "Bugün".into();
+        linking.body = format!("bkz. [o gün](entry:{target_id}) ve [kayıp](entry:0b6f3a52-0c1e-4c3f-9e4a-2f6d1c0b9a77)");
+        let linking_id = linking.id.clone();
+        s.save_entry(linking).unwrap();
+
+        let back: Vec<String> = s.backlinks(&target_id).into_iter().map(|m| m.id).collect();
+        assert_eq!(back, vec![linking_id.clone()]);
+        assert!(s.backlinks(&linking_id).is_empty());
+
+        // Trashed entries do not count as linking.
+        s.trash_entry(&linking_id).unwrap();
+        assert!(s.backlinks(&target_id).is_empty());
+        s.restore_entry(&linking_id).unwrap();
+
+        // Export points links at the other exported file; unknown targets stay as they are.
+        let out = s.export_markdown(tmp.path()).unwrap();
+        let md = fs::read_to_string(out.join("2026-10-25 Bugün.md")).unwrap();
+        assert!(md.contains("[o gün](2026-10-20%20Taşınma%20günü.md)"), "{md}");
+        assert!(md.contains("(entry:0b6f3a52-0c1e-4c3f-9e4a-2f6d1c0b9a77)"));
     }
 
     #[test]

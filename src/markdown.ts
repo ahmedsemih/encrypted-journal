@@ -16,7 +16,8 @@ export type FormatKind =
   | "table"
   | "indent"
   | "outdent"
-  | "image";
+  | "image"
+  | "entryLink";
 
 interface FormatButton {
   kind: FormatKind | "separator";
@@ -38,6 +39,7 @@ export const FORMATS: FormatButton[] = [
   { kind: "code", icon: "</>", shortcut: "e" },
   { kind: "codeblock", icon: "{ }" },
   { kind: "link", icon: "🔗", shortcut: "k" },
+  { kind: "entryLink", icon: "[[ ]]" },
   { kind: "image", icon: "🖼" },
   { kind: "table", icon: "▦" },
   { kind: "hr", icon: "―" },

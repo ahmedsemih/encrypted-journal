@@ -13,6 +13,7 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 📅 Takvim görünümü, güne göre filtreleme
 - 🔎 Tam metin arama: büyük/küçük harf ve ş/s, ı/i gibi farkları önemsemez; "tam ifade" ve -hariç tutma destekler, eşleşen yeri vurgulu gösterir
 - 🧰 Filtreler: tarih aralığı, ruh hali, birden çok etiket (hepsi), favoriler; birleştirilebilir
+- 🔗 Kayıtlar arası bağlantılar: `[[` yazınca kayıt seçici açılır, `[metin](entry:<id>)` olarak saklanır (yeniden adlandırmada kopmaz); önizlemede tıklanabilir, editör altında giden bağlantılar ve "bu kayda bağlananlar" listelenir; Markdown dışa aktarımında dosyalara yönlenir
 - 🏷️ Etiketler, 😄 ruh hali, ★ favoriler
 - 🕰️ "Geçmişte bugün", seri (streak) ve kelime istatistikleri
 - 🖼 Şifreli resim ekleri (araç çubuğu, yapıştırma veya sürükle-bırak); yedeğe ve dışa aktarıma dahil

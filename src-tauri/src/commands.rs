@@ -216,6 +216,12 @@ pub fn empty_trash(state: State<'_, AppState>) -> AppResult<()> {
     })
 }
 
+/// Entries that link to the given one.
+#[tauri::command]
+pub fn backlinks(state: State<'_, AppState>, id: String) -> AppResult<Vec<EntryMeta>> {
+    with_session(&state, |s| Ok(s.backlinks(&id)))
+}
+
 /// Full-text search over decrypted entries.
 #[tauri::command]
 pub fn search_entries(state: State<'_, AppState>, query: String) -> AppResult<Vec<search::Hit>> {

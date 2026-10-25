@@ -10,6 +10,7 @@ import { clearAttachmentCache } from "../attachments";
 import { applyFilters, NO_FILTERS, type Filters } from "../filters";
 import type { Entry, EntryMeta, SearchHit, Settings } from "../types";
 import { Editor } from "./Editor";
+import { EntryLinksContext, type EntryLinks } from "./EntryLinks";
 import { EntryList } from "./EntryList";
 import { SettingsModal, type Tab as SettingsTab } from "./SettingsModal";
 import { Sidebar } from "./Sidebar";
@@ -155,6 +156,21 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
       setSection(next);
     },
     [section, flush],
+  );
+
+  /** Opens an entry from anywhere (links, sidebar), leaving the trash or statistics if needed. */
+  const openEntry = useCallback(
+    async (id: string) => {
+      await flush();
+      setSection("entries");
+      setSelectedId(id);
+    },
+    [flush],
+  );
+
+  const entryLinks = useMemo<EntryLinks>(
+    () => ({ metas, byId: new Map(metas.map((m) => [m.id, m])), open: (id) => void openEntry(id) }),
+    [metas, openEntry],
   );
 
   const lock = useCallback(async () => {
@@ -420,10 +436,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
             setFilters(f);
           }}
           onSection={openSection}
-          onSelect={(id) => {
-            setSection("entries");
-            setSelectedId(id);
-          }}
+          onSelect={openEntry}
           onNew={newEntry}
           onLock={lock}
           onSettings={() => setShowSettings("appearance")}
@@ -451,114 +464,116 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   }
 
   return (
-    <div className={`journal${focus ? " focus" : ""}`}>
-      {!focus && (
-        <>
-          <Sidebar
-            username={username}
-            metas={metas}
-            trashCount={trash.length}
-            section={section}
-            tags={allTags}
-            filters={filters}
-            onFilters={(f) => {
-              void openSection("entries");
-              setFilters(f);
-            }}
-            onSection={openSection}
-            onSelect={(id) => void openSection("entries").then(() => select(id))}
-            onNew={newEntry}
-            onLock={lock}
-            onSettings={() => setShowSettings("appearance")}
-            templates={templatesOf(settings, t)}
-            defaultTemplateId={settings.defaultTemplateId}
-            onManageTemplates={() => setShowSettings("templates")}
-          />
-          <EntryList
-            section={section}
-            entries={inTrash ? trash : visible}
-            total={inTrash ? trash.length : metas.length}
-            selectedId={inTrash ? trashSelectedId : selectedId}
-            filters={filters}
-            hits={hits}
-            tags={allTags}
-            searchRef={searchRef}
-            onFilters={setFilters}
-            onSelect={select}
-            onNew={newEntry}
-            onEmptyTrash={emptyTrash}
-          />
-        </>
-      )}
-      <main className="editor-pane">
-        {toast && (
-          <div className={`toast ${toast.kind}`}>
-            <span onClick={() => setToast(null)}>{toast.text}</span>
-            {toast.action && (
-              <button
-                className="link"
-                onClick={() => {
-                  toast.action?.run();
-                  setToast(null);
-                }}
-              >
-                {toast.action.label}
-              </button>
-            )}
-          </div>
+    <EntryLinksContext.Provider value={entryLinks}>
+      <div className={`journal${focus ? " focus" : ""}`}>
+        {!focus && (
+          <>
+            <Sidebar
+              username={username}
+              metas={metas}
+              trashCount={trash.length}
+              section={section}
+              tags={allTags}
+              filters={filters}
+              onFilters={(f) => {
+                void openSection("entries");
+                setFilters(f);
+              }}
+              onSection={openSection}
+              onSelect={openEntry}
+              onNew={newEntry}
+              onLock={lock}
+              onSettings={() => setShowSettings("appearance")}
+              templates={templatesOf(settings, t)}
+              defaultTemplateId={settings.defaultTemplateId}
+              onManageTemplates={() => setShowSettings("templates")}
+            />
+            <EntryList
+              section={section}
+              entries={inTrash ? trash : visible}
+              total={inTrash ? trash.length : metas.length}
+              selectedId={inTrash ? trashSelectedId : selectedId}
+              filters={filters}
+              hits={hits}
+              tags={allTags}
+              searchRef={searchRef}
+              onFilters={setFilters}
+              onSelect={select}
+              onNew={newEntry}
+              onEmptyTrash={emptyTrash}
+            />
+          </>
         )}
-        {inTrash ? (
-          trashSelectedId ? (
-            <TrashView
-              key={trashSelectedId}
-              id={trashSelectedId}
-              onRestore={restore}
-              onPurge={purge}
-              onError={showError}
+        <main className="editor-pane">
+          {toast && (
+            <div className={`toast ${toast.kind}`}>
+              <span onClick={() => setToast(null)}>{toast.text}</span>
+              {toast.action && (
+                <button
+                  className="link"
+                  onClick={() => {
+                    toast.action?.run();
+                    setToast(null);
+                  }}
+                >
+                  {toast.action.label}
+                </button>
+              )}
+            </div>
+          )}
+          {inTrash ? (
+            trashSelectedId ? (
+              <TrashView
+                key={trashSelectedId}
+                id={trashSelectedId}
+                onRestore={restore}
+                onPurge={purge}
+                onError={showError}
+              />
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">🗑</div>
+                <h2>{trash.length ? t.trash.select : t.trash.empty}</h2>
+                <p className="muted">{t.trash.retention}</p>
+              </div>
+            )
+          ) : entry && entry.id === selectedId ? (
+            <Editor
+              key={entry.id}
+              entry={entry}
+              settings={settings}
+              tagSuggestions={allTags.map(([tag]) => tag)}
+              onSaved={onSaved}
+              onDelete={onDelete}
+              onDiscard={onDiscard}
+              flushRef={flushRef}
+              focus={focus}
+              onToggleFocus={() => setFocusMode((on) => !on)}
             />
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">🗑</div>
-              <h2>{trash.length ? t.trash.select : t.trash.empty}</h2>
-              <p className="muted">{t.trash.retention}</p>
+              <div className="empty-icon">📔</div>
+              <h2>{metas.length ? t.journal.selectEntry : t.journal.emptyJournal}</h2>
+              <p className="muted">{t.journal.emptyHint}</p>
+              <button className="primary" onClick={() => newEntry()}>
+                {t.journal.newEntry} <kbd>Ctrl+N</kbd>
+              </button>
             </div>
-          )
-        ) : entry && entry.id === selectedId ? (
-          <Editor
-            key={entry.id}
-            entry={entry}
+          )}
+        </main>
+        {showSettings && (
+          <SettingsModal
+            username={username}
             settings={settings}
-            tagSuggestions={allTags.map(([tag]) => tag)}
-            onSaved={onSaved}
-            onDelete={onDelete}
-            onDiscard={onDiscard}
-            flushRef={flushRef}
-            focus={focus}
-            onToggleFocus={() => setFocusMode((on) => !on)}
+            onChange={onSettingsChange}
+            onClose={() => setShowSettings(false)}
+            onAccountDeleted={onAccountDeleted}
+            onBackupNow={() => runAutoBackup(true)}
+            initialTab={showSettings || undefined}
+            flush={flush}
           />
-        ) : (
-          <div className="empty-state">
-            <div className="empty-icon">📔</div>
-            <h2>{metas.length ? t.journal.selectEntry : t.journal.emptyJournal}</h2>
-            <p className="muted">{t.journal.emptyHint}</p>
-            <button className="primary" onClick={() => newEntry()}>
-              {t.journal.newEntry} <kbd>Ctrl+N</kbd>
-            </button>
-          </div>
         )}
-      </main>
-      {showSettings && (
-        <SettingsModal
-          username={username}
-          settings={settings}
-          onChange={onSettingsChange}
-          onClose={() => setShowSettings(false)}
-          onAccountDeleted={onAccountDeleted}
-          onBackupNow={() => runAutoBackup(true)}
-          initialTab={showSettings || undefined}
-          flush={flush}
-        />
-      )}
-    </div>
+      </div>
+    </EntryLinksContext.Provider>
   );
 }

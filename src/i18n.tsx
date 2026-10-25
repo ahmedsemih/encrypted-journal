@@ -91,6 +91,7 @@ const tr = {
     code: "Satır içi kod",
     codeblock: "Kod bloğu",
     link: "Bağlantı",
+    entryLink: "Kayda bağlantı ver ([[ yazarak da)",
     table: "Tablo",
     hr: "Ayraç",
     indent: "Girinti",
@@ -114,6 +115,15 @@ const tr = {
     clear: "Temizle",
     noMatch: "Eşleşen kayıt yok.",
     noEntries: "Henüz kayıt yok.",
+  },
+
+  links: {
+    insert: "Kayda bağlantı ver",
+    search: "Kayıt ara…",
+    none: "Eşleşen kayıt yok.",
+    missing: "Bu kayıt silinmiş",
+    outgoing: "Bağlantılar",
+    backlinks: "Bu kayda bağlananlar",
   },
 
   filters: {
@@ -450,6 +460,7 @@ const en: Dict = {
     code: "Inline code",
     codeblock: "Code block",
     link: "Link",
+    entryLink: "Link to an entry (or type [[)",
     table: "Table",
     hr: "Divider",
     indent: "Indent",
@@ -473,6 +484,15 @@ const en: Dict = {
     clear: "Clear",
     noMatch: "No matching entries.",
     noEntries: "No entries yet.",
+  },
+
+  links: {
+    insert: "Link to an entry",
+    search: "Search entries…",
+    none: "No matching entries.",
+    missing: "This entry was deleted",
+    outgoing: "Links",
+    backlinks: "Linked from",
   },
 
   filters: {

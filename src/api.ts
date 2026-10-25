@@ -29,6 +29,7 @@ export const api = {
   restoreEntry: (id: string) => invoke<EntryMeta>("restore_entry", { id }),
   purgeEntry: (id: string) => invoke<void>("purge_entry", { id }),
   emptyTrash: () => invoke<void>("empty_trash"),
+  backlinks: (id: string) => invoke<EntryMeta[]>("backlinks", { id }),
   searchEntries: (query: string) => invoke<SearchHit[]>("search_entries", { query }),
 
   getSettings: async (): Promise<Settings> => ({

@@ -25,8 +25,14 @@ const COPIED = [
   "tabSize",
 ] as const;
 
-/** Vertical center of the caret line, relative to the top of the textarea's content. */
-export function caretCenter(ta: HTMLTextAreaElement): number {
+export interface CaretRect {
+  top: number;
+  left: number;
+  height: number;
+}
+
+/** The caret's box relative to the textarea's border box, ignoring scrolling. */
+export function caretRect(ta: HTMLTextAreaElement): CaretRect {
   const style = getComputedStyle(ta);
   const mirror = document.createElement("div");
   for (const prop of COPIED) mirror.style[prop] = style[prop];
@@ -45,12 +51,13 @@ export function caretCenter(ta: HTMLTextAreaElement): number {
   marker.textContent = "​";
   mirror.append(marker);
   document.body.append(mirror);
-  const center = marker.offsetTop + marker.offsetHeight / 2;
+  const rect = { top: marker.offsetTop, left: marker.offsetLeft, height: marker.offsetHeight };
   mirror.remove();
-  return center;
+  return rect;
 }
 
 /** Scrolls so the caret line sits in the vertical middle of the textarea. */
 export function centerCaret(ta: HTMLTextAreaElement) {
-  ta.scrollTop = caretCenter(ta) - ta.clientHeight / 2;
+  const caret = caretRect(ta);
+  ta.scrollTop = caret.top + caret.height / 2 - ta.clientHeight / 2;
 }

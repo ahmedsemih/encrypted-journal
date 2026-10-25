@@ -57,6 +57,7 @@ pub fn run() {
             commands::add_attachment_file,
             commands::get_attachment,
             commands::search_entries,
+            commands::backlinks,
             commands::get_settings,
             commands::save_settings,
             commands::export_markdown,

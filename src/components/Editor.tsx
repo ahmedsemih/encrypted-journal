@@ -1,4 +1,13 @@
-import { ClipboardEvent, KeyboardEvent, RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  ClipboardEvent,
+  KeyboardEvent,
+  RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api } from "../api";
@@ -8,7 +17,10 @@ import { formatLong } from "../dates";
 import type { EditorView, Entry, EntryInput, EntryMeta, Settings } from "../types";
 import { MOODS } from "../types";
 import { contentStyle } from "../typography";
-import { centerCaret } from "../caret";
+import { caretRect, centerCaret } from "../caret";
+import { entryLink, outgoingIds } from "../links";
+import { useEntryLinks } from "./EntryLinks";
+import { LinkPicker } from "./LinkPicker";
 import { MarkdownView } from "./MarkdownView";
 import { TagInput } from "./TagInput";
 import { FORMATS, applyFormat, continueList, type FormatKind } from "../markdown";
@@ -74,6 +86,10 @@ export function Editor(props: Props) {
   const [addingImages, setAddingImages] = useState(0);
   const [imageError, setImageError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  /** Open entry picker: where to show it and which body range the link replaces. */
+  const [picker, setPicker] = useState<{ top: number; left: number; start: number; end: number } | null>(null);
+  const [backlinks, setBacklinks] = useState<EntryMeta[]>([]);
+  const links = useEntryLinks();
   const textRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const pendingSelection = useRef<[number, number] | null>(null);
@@ -238,7 +254,10 @@ export function Editor(props: Props) {
     );
 
   const pickImages = async () => {
-    const picked = await open({ multiple: true, filters: [{ name: t.editor.imageFilter, extensions: IMAGE_EXTENSIONS }] });
+    const picked = await open({
+      multiple: true,
+      filters: [{ name: t.editor.imageFilter, extensions: IMAGE_EXTENSIONS }],
+    });
     if (picked) await addImagePaths(Array.isArray(picked) ? picked : [picked]);
   };
 
@@ -269,9 +288,54 @@ export function Editor(props: Props) {
     };
   }, []);
 
+  /** Opens the entry picker at the caret; the link will replace body[start, end). */
+  const openPicker = (start: number, end: number) => {
+    const ta = textRef.current;
+    if (!ta) return;
+    const box = ta.getBoundingClientRect();
+    const caret = caretRect(ta);
+    const top = box.top + caret.top - ta.scrollTop + caret.height + 4;
+    const left = Math.min(box.left + caret.left, window.innerWidth - 340);
+    setPicker({ top: Math.min(top, window.innerHeight - 320), left: Math.max(8, left), start, end });
+  };
+
+  const insertLink = (target: EntryMeta) => {
+    if (!picker) return;
+    const body = draftRef.current.body;
+    const selected = body.slice(picker.start, picker.end);
+    const label = selected && !selected.startsWith("[[") ? selected : target.title || target.date;
+    const link = entryLink(label, target.id);
+    pendingSelection.current = [picker.start + link.length, picker.start + link.length];
+    setPicker(null);
+    update({ body: body.slice(0, picker.start) + link + body.slice(picker.end) });
+  };
+
+  const closePicker = () => {
+    setPicker(null);
+    textRef.current?.focus();
+  };
+
+  // Links to and from this entry, listed under the editor.
+  useEffect(() => {
+    let cancelled = false;
+    api.backlinks(entry.id).then(
+      (found) => !cancelled && setBacklinks(found),
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.id, links.metas]);
+  const outgoing = outgoingIds(draft.body);
+
   const format = (kind: FormatKind) => {
     if (kind === "image") {
       void pickImages();
+      return;
+    }
+    if (kind === "entryLink") {
+      const ta = textRef.current;
+      if (ta) openPicker(ta.selectionStart, ta.selectionEnd);
       return;
     }
     const ta = textRef.current;
@@ -300,7 +364,13 @@ export function Editor(props: Props) {
     }
     if (e.key === "Tab") {
       e.preventDefault();
-      const r = applyFormat(draftRef.current.body, ta.selectionStart, ta.selectionEnd, e.shiftKey ? "outdent" : "indent", t.placeholders);
+      const r = applyFormat(
+        draftRef.current.body,
+        ta.selectionStart,
+        ta.selectionEnd,
+        e.shiftKey ? "outdent" : "indent",
+        t.placeholders,
+      );
       pendingSelection.current = [r.selStart, r.selEnd];
       update({ body: r.text });
       return;
@@ -448,7 +518,16 @@ export function Editor(props: Props) {
             placeholder={t.editor.bodyPlaceholder}
             value={draft.body}
             spellCheck={settings.spellcheck}
-            onChange={(e) => update({ body: e.target.value }, "body")}
+            onChange={(e) => {
+              const body = e.target.value;
+              const caret = e.target.selectionEnd;
+              const typedOne = body.length === draftRef.current.body.length + 1;
+              update({ body }, "body");
+              if (typedOne && body.slice(caret - 2, caret) === "[[") {
+                // Measure after React has rendered the new text.
+                requestAnimationFrame(() => openPicker(caret - 2, caret));
+              }
+            }}
             onKeyDown={onBodyKey}
             onPaste={onPaste}
             onSelect={keepCaretCentered}
@@ -457,10 +536,48 @@ export function Editor(props: Props) {
         )}
         {view !== "edit" && (
           <div className="preview">
-            {draft.body.trim() ? <MarkdownView source={draft.body} /> : <p className="muted">{t.editor.nothingToPreview}</p>}
+            {draft.body.trim() ? (
+              <MarkdownView source={draft.body} />
+            ) : (
+              <p className="muted">{t.editor.nothingToPreview}</p>
+            )}
           </div>
         )}
       </div>
+
+      {!focus && (outgoing.length > 0 || backlinks.length > 0) && (
+        <div className="links-bar">
+          {outgoing.length > 0 && (
+            <div>
+              <span className="links-label">→ {t.links.outgoing}</span>
+              {outgoing.map((id) => {
+                const target = links.byId.get(id);
+                return target ? (
+                  <button key={id} type="button" className="chip" onClick={() => links.open(id)}>
+                    {target.title || t.untitled}
+                  </button>
+                ) : (
+                  <span key={id} className="chip missing" title={t.links.missing}>
+                    ?
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {backlinks.length > 0 && (
+            <div>
+              <span className="links-label">← {t.links.backlinks}</span>
+              {backlinks.map((m) => (
+                <button key={m.id} type="button" className="chip" onClick={() => links.open(m.id)}>
+                  {m.title || t.untitled}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {picker && <LinkPicker at={picker} excludeId={entry.id} onPick={insertLink} onClose={closePicker} />}
 
       {!focus && (
         <footer className="status-bar">

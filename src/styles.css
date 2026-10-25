@@ -1701,3 +1701,86 @@ button.tag:hover {
   flex-wrap: wrap;
   gap: 4px 16px;
 }
+
+/* ---------- links between entries ---------- */
+.entry-link {
+  text-decoration-style: dotted;
+}
+.entry-link.missing {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.links-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 8px var(--gutter);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.links-bar > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.links-label {
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+.links-bar .chip {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip.missing {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.link-picker {
+  position: fixed;
+  z-index: 21;
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.link-options {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.link-options p {
+  margin: 6px 4px;
+  font-size: 13px;
+}
+.link-options button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.link-options button.active {
+  background: var(--accent-soft);
+}
+.link-option-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-options .muted {
+  flex-shrink: 0;
+  font-size: 12px;
+}
