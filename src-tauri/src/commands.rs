@@ -222,12 +222,13 @@ pub fn backlinks(state: State<'_, AppState>, id: String) -> AppResult<Vec<EntryM
     with_session(&state, |s| Ok(s.backlinks(&id)))
 }
 
-/// Full-text search over decrypted entries.
+/// Full-text search over decrypted entries, either the journal or the trash.
 #[tauri::command]
-pub fn search_entries(state: State<'_, AppState>, query: String) -> AppResult<Vec<search::Hit>> {
+pub fn search_entries(state: State<'_, AppState>, query: String, trash: Option<bool>) -> AppResult<Vec<search::Hit>> {
     let query = search::Query::parse(&query);
+    let trash = trash.unwrap_or(false);
     with_session(&state, |s| {
-        Ok(s.entries.values().filter(|e| !e.is_trashed()).filter_map(|e| search::search(e, &query)).collect())
+        Ok(s.entries.values().filter(|e| e.is_trashed() == trash).filter_map(|e| search::search(e, &query)).collect())
     })
 }
 

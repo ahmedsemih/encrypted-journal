@@ -22,6 +22,7 @@ interface Props {
   onManageTemplates: () => void;
   onLock: () => void;
   onSettings: () => void;
+  onSearch: () => void;
 }
 
 export function Sidebar(props: Props) {
@@ -41,6 +42,7 @@ export function Sidebar(props: Props) {
     onManageTemplates,
     onLock,
     onSettings,
+    onSearch,
   } = props;
   const inTrash = section === "trash";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -74,6 +76,9 @@ export function Sidebar(props: Props) {
             {username}
           </span>
         </div>
+        <button className="icon-btn" title={t.sidebar.search} onClick={onSearch}>
+          🔍
+        </button>
         <button className="icon-btn" title={t.sidebar.settings} onClick={onSettings}>
           ⚙
         </button>

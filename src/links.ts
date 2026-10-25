@@ -1,4 +1,5 @@
 /** Links between entries: `[text](entry:<uuid>)`, resolved by id so renames don't break them. */
+import { fold } from "./text";
 import type { EntryMeta } from "./types";
 
 export const ENTRY_SCHEME = "entry:";
@@ -11,11 +12,6 @@ export function entryLink(label: string, id: string): string {
 /** Ids linked from a body, in order of first appearance. */
 export function outgoingIds(body: string): string[] {
   return [...new Set(Array.from(body.matchAll(LINK_ID), (m) => m[1].toLowerCase()))];
-}
-
-/** Lowercase without diacritics, with Turkish dotted/dotless i folded together. */
-export function fold(s: string): string {
-  return s.toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
 }
 
 /** Picker candidates: title or date contains the query; newest first (metas arrive sorted). */

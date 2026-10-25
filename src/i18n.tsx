@@ -117,6 +117,42 @@ const tr = {
     noEntries: "Henüz kayıt yok.",
   },
 
+  palette: {
+    title: "Her yerde ara",
+    placeholder: "Kayıt, etiket, tarih veya komut ara…",
+    groups: {
+      dates: "Tarih",
+      recent: "Son düzenlenenler",
+      entries: "Kayıtlar",
+      tags: "Etiketler",
+      commands: "Komutlar",
+      trash: "Çöp kutusunda",
+    },
+    dateWords: { today: ["bugün", "bugun", "today"], yesterday: ["dün", "dun", "yesterday"] },
+    goToDay: (day: string) => `${day} tarihli kayıtlar`,
+    goToRange: (range: string) => `${range} arası kayıtlar`,
+    entryCount: (n: number) => `${n} kayıt`,
+    showAll: (n: number) => `${n} sonucun hepsini listede göster`,
+    searching: "Aranıyor…",
+    noResults: "Sonuç yok.",
+    keys: "↑↓ gezin · Enter aç · Esc kapat",
+    commands: {
+      newEntry: "Yeni kayıt",
+      newFromTemplate: (name: string) => `Şablondan yeni kayıt: ${name}`,
+      allEntries: "Tüm kayıtlar",
+      favorites: "Favoriler",
+      stats: "İstatistikler",
+      trash: "Çöp kutusu",
+      focus: "Odak modu",
+      fullscreen: "Tam ekran",
+      settings: "Ayarlar",
+      templates: "Şablonları düzenle",
+      security: "Güvenlik ayarları (parola, kurtarma anahtarı)",
+      backup: "Şimdi yedekle",
+      lock: "Kilitle",
+    },
+  },
+
   links: {
     insert: "Kayda bağlantı ver",
     search: "Kayıt ara…",
@@ -279,6 +315,7 @@ const tr = {
   },
 
   sidebar: {
+    search: "Her yerde ara (Ctrl+P)",
     settings: "Ayarlar (Ctrl+,)",
     lock: "Kilitle (Ctrl+L)",
     newEntry: "✎ Yeni kayıt",
@@ -486,6 +523,42 @@ const en: Dict = {
     noEntries: "No entries yet.",
   },
 
+  palette: {
+    title: "Search everywhere",
+    placeholder: "Search entries, tags, dates or commands…",
+    groups: {
+      dates: "Date",
+      recent: "Recently edited",
+      entries: "Entries",
+      tags: "Tags",
+      commands: "Commands",
+      trash: "In the trash",
+    },
+    dateWords: { today: ["today", "bugün", "bugun"], yesterday: ["yesterday", "dün", "dun"] },
+    goToDay: (day) => `Entries on ${day}`,
+    goToRange: (range) => `Entries from ${range}`,
+    entryCount: (n) => `${n} ${n === 1 ? "entry" : "entries"}`,
+    showAll: (n) => `Show all ${n} results in the list`,
+    searching: "Searching…",
+    noResults: "No results.",
+    keys: "↑↓ navigate · Enter open · Esc close",
+    commands: {
+      newEntry: "New entry",
+      newFromTemplate: (name) => `New entry from template: ${name}`,
+      allEntries: "All entries",
+      favorites: "Favorites",
+      stats: "Statistics",
+      trash: "Trash",
+      focus: "Focus mode",
+      fullscreen: "Full screen",
+      settings: "Settings",
+      templates: "Edit templates",
+      security: "Security settings (password, recovery key)",
+      backup: "Back up now",
+      lock: "Lock",
+    },
+  },
+
   links: {
     insert: "Link to an entry",
     search: "Search entries…",
@@ -648,6 +721,7 @@ const en: Dict = {
   },
 
   sidebar: {
+    search: "Search everywhere (Ctrl+P)",
     settings: "Settings (Ctrl+,)",
     lock: "Lock (Ctrl+L)",
     newEntry: "✎ New entry",

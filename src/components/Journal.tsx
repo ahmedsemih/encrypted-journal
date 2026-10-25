@@ -9,6 +9,7 @@ import * as history from "../history";
 import { clearAttachmentCache } from "../attachments";
 import { applyFilters, NO_FILTERS, type Filters } from "../filters";
 import type { Entry, EntryMeta, SearchHit, Settings } from "../types";
+import { CommandPalette, type PaletteActions } from "./CommandPalette";
 import { Editor } from "./Editor";
 import { EntryLinksContext, type EntryLinks } from "./EntryLinks";
 import { EntryList } from "./EntryList";
@@ -65,6 +66,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   const [showSettings, setShowSettings] = useState<SettingsTab | false>(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   /** Saves the open editor (and drops it if left empty). Set by the Editor. */
   const flushRef = useRef<(() => Promise<void>) | null>(null);
@@ -367,7 +369,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   }, [flush]);
 
   // Global shortcuts.
-  const modalOpen = showSettings !== false;
+  const modalOpen = showSettings !== false || paletteOpen;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "F11") {
@@ -381,7 +383,10 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
       }
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
-      if (key === "f" && e.shiftKey) {
+      if (key === "p") {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      } else if (key === "f" && e.shiftKey) {
         e.preventDefault();
         setFocusMode((on) => !on);
       } else if (key === "n") {
@@ -416,6 +421,36 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
     if (!editing) setFocusMode(false);
   }, [editing]);
 
+  const paletteActions: PaletteActions = {
+    openEntry: (id) => void openEntry(id),
+    openTrashEntry: async (id) => {
+      await flush();
+      setSection("trash");
+      setTrashSelectedId(id);
+    },
+    filter: async (patch) => {
+      await openSection("entries");
+      setFilters({ ...NO_FILTERS, ...patch });
+    },
+    newEntry: (templateId) => void newEntry(templateId),
+    section: (s) => void openSection(s),
+    settings: setShowSettings,
+    focus: () => setFocusMode((on) => !on),
+    fullscreen: () => void toggleFullscreen(),
+    backup: settings.autoBackup.dir ? () => void runAutoBackup(true).catch(() => {}) : null,
+    lock: () => void lock(),
+  };
+  const palette = paletteOpen && (
+    <CommandPalette
+      metas={metas}
+      trash={trash}
+      tags={allTags}
+      templates={templatesOf(settings, t)}
+      actions={paletteActions}
+      onClose={() => setPaletteOpen(false)}
+    />
+  );
+
   const pickDay = (day: string) => {
     setFilters({ ...NO_FILTERS, day });
     setSection("entries");
@@ -440,6 +475,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
           onNew={newEntry}
           onLock={lock}
           onSettings={() => setShowSettings("appearance")}
+          onSearch={() => setPaletteOpen(true)}
           templates={templatesOf(settings, t)}
           defaultTemplateId={settings.defaultTemplateId}
           onManageTemplates={() => setShowSettings("templates")}
@@ -447,6 +483,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
         <main className="stats-pane">
           <StatsView metas={metas} onPickDay={pickDay} />
         </main>
+        {palette}
         {showSettings && (
           <SettingsModal
             username={username}
@@ -484,6 +521,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
               onNew={newEntry}
               onLock={lock}
               onSettings={() => setShowSettings("appearance")}
+              onSearch={() => setPaletteOpen(true)}
               templates={templatesOf(settings, t)}
               defaultTemplateId={settings.defaultTemplateId}
               onManageTemplates={() => setShowSettings("templates")}
@@ -561,6 +599,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
             </div>
           )}
         </main>
+        {palette}
         {showSettings && (
           <SettingsModal
             username={username}

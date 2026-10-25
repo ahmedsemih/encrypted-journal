@@ -14,6 +14,7 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 🔎 Tam metin arama: büyük/küçük harf ve ş/s, ı/i gibi farkları önemsemez; "tam ifade" ve -hariç tutma destekler, eşleşen yeri vurgulu gösterir
 - 🧰 Filtreler: tarih aralığı, ruh hali, birden çok etiket (hepsi), favoriler; birleştirilebilir
 - 🔗 Kayıtlar arası bağlantılar: `[[` yazınca kayıt seçici açılır, `[metin](entry:<id>)` olarak saklanır (yeniden adlandırmada kopmaz); önizlemede tıklanabilir, editör altında giden bağlantılar ve "bu kayda bağlananlar" listelenir; Markdown dışa aktarımında dosyalara yönlenir
+- 🧭 Komut paleti (Ctrl+P): kayıtları, çöp kutusunu, etiketleri, tarihleri ve komutları tek kutudan arar
 - 🏷️ Etiketler, 😄 ruh hali, ★ favoriler
 - 🕰️ "Geçmişte bugün", seri (streak) ve kelime istatistikleri
 - 🖼 Şifreli resim ekleri (araç çubuğu, yapıştırma veya sürükle-bırak); yedeğe ve dışa aktarıma dahil
@@ -34,7 +35,8 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 | Kısayol | İşlev |
 | --- | --- |
 | Ctrl+N | Yeni kayıt |
-| Ctrl+F | Ara |
+| Ctrl+P | Her yerde ara: kayıtlar, çöp kutusu, etiketler, tarihler ("dün", "25.10.2025", "ekim 2025") ve komutlar |
+| Ctrl+F | Listede ara |
 | Ctrl+L | Kilitle |
 | Ctrl+, | Ayarlar |
 | Ctrl+Shift+F / Esc | Odak moduna gir / çık |

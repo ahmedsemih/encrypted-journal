@@ -16,5 +16,7 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
+    // Loaded from disk by the desktop app, so bundle size matters little.
+    chunkSizeWarningLimit: 1024,
   },
 });
