@@ -3,7 +3,8 @@ import { currentStreak, onThisDay as earlierYears, today } from "../dates";
 import { useI18n } from "../i18n";
 import { MOODS, type EntryMeta, type Template } from "../types";
 import { Calendar } from "./Calendar";
-import type { Filters, Section } from "./Journal";
+import { hasFilters, NO_FILTERS, toggle, type Filters } from "../filters";
+import type { Section } from "./Journal";
 
 interface Props {
   username: string;
@@ -123,8 +124,8 @@ export function Sidebar(props: Props) {
 
       <nav className="nav">
         <button
-          className={inEntries && !filters.favorites && !filters.tag && !filters.day ? "active" : ""}
-          onClick={() => onFilters((f) => ({ ...f, favorites: false, tag: null, day: null }))}
+          className={inEntries && !hasFilters(filters) ? "active" : ""}
+          onClick={() => onFilters((f) => ({ ...NO_FILTERS, query: f.query }))}
         >
           {t.sidebar.all} <span className="count">{metas.length}</span>
         </button>
@@ -167,8 +168,8 @@ export function Sidebar(props: Props) {
             {tags.map(([tag, n]) => (
               <button
                 key={tag}
-                className={`tag ${filters.tag === tag ? "active" : ""}`}
-                onClick={() => onFilters((f) => ({ ...f, tag: f.tag === tag ? null : tag }))}
+                className={`tag ${filters.tags.includes(tag) ? "active" : ""}`}
+                onClick={() => onFilters((f) => ({ ...f, tags: toggle(f.tags, tag) }))}
               >
                 #{tag} <small>{n}</small>
               </button>

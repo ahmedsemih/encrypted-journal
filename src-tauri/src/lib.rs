@@ -3,7 +3,9 @@ mod commands;
 mod crypto;
 mod entry;
 mod error;
+mod links;
 mod recovery;
+mod search;
 mod syslock;
 mod vault;
 

@@ -116,6 +116,19 @@ const tr = {
     noEntries: "Henüz kayıt yok.",
   },
 
+  filters: {
+    title: "Filtreler",
+    date: "Tarih aralığı",
+    from: "Başlangıç",
+    to: "Bitiş",
+    presets: { last7: "Son 7 gün", last30: "Son 30 gün", thisYear: "Bu yıl", lastYear: "Geçen yıl" },
+    mood: "Ruh hali",
+    tags: "Etiketler (hepsi)",
+    favoritesOnly: "Yalnızca favoriler",
+    remove: "Filtreyi kaldır",
+    searchHelp: 'Aramada "tam ifade" için tırnak, hariç tutmak için ‑kelime kullanın. Büyük/küçük harf ve ş/s, ı/i gibi farklar önemsenmez.',
+  },
+
   calendar: {
     weekdays: ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"],
     prev: "Önceki ay",
@@ -460,6 +473,19 @@ const en: Dict = {
     clear: "Clear",
     noMatch: "No matching entries.",
     noEntries: "No entries yet.",
+  },
+
+  filters: {
+    title: "Filters",
+    date: "Date range",
+    from: "From",
+    to: "To",
+    presets: { last7: "Last 7 days", last30: "Last 30 days", thisYear: "This year", lastYear: "Last year" },
+    mood: "Mood",
+    tags: "Tags (all of)",
+    favoritesOnly: "Favorites only",
+    remove: "Remove filter",
+    searchHelp: 'Use quotes for an "exact phrase" and ‑word to exclude. Case and accents (ş/s, ı/i) are ignored.',
   },
 
   calendar: {

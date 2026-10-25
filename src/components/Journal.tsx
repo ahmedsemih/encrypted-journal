@@ -7,7 +7,8 @@ import { instantiate, templatesOf } from "../templates";
 import { today } from "../dates";
 import * as history from "../history";
 import { clearAttachmentCache } from "../attachments";
-import type { Entry, EntryMeta, Settings } from "../types";
+import { applyFilters, NO_FILTERS, type Filters } from "../filters";
+import type { Entry, EntryMeta, SearchHit, Settings } from "../types";
 import { Editor } from "./Editor";
 import { EntryList } from "./EntryList";
 import { SettingsModal, type Tab as SettingsTab } from "./SettingsModal";
@@ -23,13 +24,6 @@ interface Props {
   onAccountDeleted: () => void;
 }
 
-export interface Filters {
-  query: string;
-  day: string | null;
-  tag: string | null;
-  favorites: boolean;
-}
-
 export type Section = "entries" | "trash" | "stats";
 
 interface Toast {
@@ -38,7 +32,6 @@ interface Toast {
   action?: { label: string; run: () => void };
 }
 
-const NO_FILTERS: Filters = { query: "", day: null, tag: null, favorites: false };
 /** Emitted by the backend when the system sleeps or the screen locks. */
 const SYSTEM_LOCK_EVENT = "system-lock";
 const AUTO_BACKUP_CHECK_MS = 15 * 60_000;
@@ -64,7 +57,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   const [trash, setTrash] = useState<EntryMeta[]>([]);
   const [section, setSection] = useState<Section>("entries");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
-  const [searchIds, setSearchIds] = useState<Set<string> | null>(null);
+  const [hits, setHits] = useState<Map<string, SearchHit> | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [trashSelectedId, setTrashSelectedId] = useState<string | null>(null);
   const [entry, setEntry] = useState<Entry | null>(null);
@@ -128,29 +121,19 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
   useEffect(() => {
     const q = filters.query.trim();
     if (!q) {
-      setSearchIds(null);
+      setHits(null);
       return;
     }
     const timer = setTimeout(() => {
       api
         .searchEntries(q)
-        .then((ids) => setSearchIds(new Set(ids)))
+        .then((found) => setHits(new Map(found.map((h) => [h.id, h]))))
         .catch(showError);
     }, 200);
     return () => clearTimeout(timer);
   }, [filters.query, metas]);
 
-  const visible = useMemo(
-    () =>
-      metas.filter(
-        (m) =>
-          (!filters.favorites || m.favorite) &&
-          (!filters.tag || m.tags.includes(filters.tag)) &&
-          (!filters.day || m.date === filters.day) &&
-          (!searchIds || searchIds.has(m.id)),
-      ),
-    [metas, filters, searchIds],
-  );
+  const visible = useMemo(() => applyFilters(metas, filters, hits), [metas, filters, hits]);
 
   const select = useCallback(
     async (id: string | null) => {
@@ -497,9 +480,10 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
             total={inTrash ? trash.length : metas.length}
             selectedId={inTrash ? trashSelectedId : selectedId}
             filters={filters}
+            hits={hits}
+            tags={allTags}
             searchRef={searchRef}
-            onQuery={(query) => setFilters((f) => ({ ...f, query }))}
-            onClearFilters={() => setFilters(NO_FILTERS)}
+            onFilters={setFilters}
             onSelect={select}
             onNew={newEntry}
             onEmptyTrash={emptyTrash}

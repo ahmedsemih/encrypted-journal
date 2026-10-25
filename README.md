@@ -11,7 +11,8 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 🗑 Çöp kutusu: silinen kayıtlar 30 gün saklanır, sonra kalıcı olarak silinir
 - 💽 Otomatik şifreli yedek: seçilen klasöre düzenli yedek, eski yedeklerin otomatik temizliği
 - 📅 Takvim görünümü, güne göre filtreleme
-- 🔎 Tam metin arama (başlık, gövde, etiketler)
+- 🔎 Tam metin arama: büyük/küçük harf ve ş/s, ı/i gibi farkları önemsemez; "tam ifade" ve -hariç tutma destekler, eşleşen yeri vurgulu gösterir
+- 🧰 Filtreler: tarih aralığı, ruh hali, birden çok etiket (hepsi), favoriler; birleştirilebilir
 - 🏷️ Etiketler, 😄 ruh hali, ★ favoriler
 - 🕰️ "Geçmişte bugün", seri (streak) ve kelime istatistikleri
 - 🖼 Şifreli resim ekleri (araç çubuğu, yapıştırma veya sürükle-bırak); yedeğe ve dışa aktarıma dahil

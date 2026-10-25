@@ -10,6 +10,7 @@ use zeroize::Zeroizing;
 
 use crate::entry::{Entry, EntryInput, EntryMeta, EntryTemplate};
 use crate::error::{AppError, AppResult};
+use crate::search;
 use crate::vault::{self, Session};
 use crate::AppState;
 
@@ -215,12 +216,12 @@ pub fn empty_trash(state: State<'_, AppState>) -> AppResult<()> {
     })
 }
 
-/// Full-text search over decrypted entries; returns matching ids.
+/// Full-text search over decrypted entries.
 #[tauri::command]
-pub fn search_entries(state: State<'_, AppState>, query: String) -> AppResult<Vec<String>> {
-    let terms: Vec<String> = query.to_lowercase().split_whitespace().map(String::from).collect();
+pub fn search_entries(state: State<'_, AppState>, query: String) -> AppResult<Vec<search::Hit>> {
+    let query = search::Query::parse(&query);
     with_session(&state, |s| {
-        Ok(s.entries.values().filter(|e| !e.is_trashed() && e.matches(&terms)).map(|e| e.id.clone()).collect())
+        Ok(s.entries.values().filter(|e| !e.is_trashed()).filter_map(|e| search::search(e, &query)).collect())
     })
 }
 

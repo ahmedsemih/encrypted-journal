@@ -174,13 +174,6 @@ impl Entry {
         }
     }
 
-    /// Case-insensitive match: every whitespace-separated term must appear in
-    /// the title, body or tags.
-    pub fn matches(&self, terms: &[String]) -> bool {
-        let haystack = format!("{}\n{}\n{}", self.title, self.tags.join(" "), self.body).to_lowercase();
-        terms.iter().all(|t| haystack.contains(t.as_str()))
-    }
-
     pub fn to_markdown(&self) -> Zeroizing<String> {
         fn field(out: &mut String, key: &str, value: impl Serialize) {
             out.push_str(key);
@@ -246,10 +239,11 @@ impl Entry {
     }
 }
 
-/// Plain-text preview of the body with common Markdown syntax stripped.
-fn excerpt(body: &str) -> String {
-    let mut out = String::new();
-    let body = crate::attachments::strip_images(body);
+/// The body as one line of plain text: images, link targets and common
+/// Markdown syntax removed.
+pub fn plain_text(body: &str) -> Zeroizing<String> {
+    let mut out = Zeroizing::new(String::with_capacity(body.len()));
+    let body = Zeroizing::new(crate::links::strip_targets(&crate::attachments::strip_images(body)));
     for line in body.lines() {
         let line = line
             .trim()
@@ -259,19 +253,22 @@ fn excerpt(body: &str) -> String {
         if line.is_empty() || line.starts_with("```") || line.chars().all(|c| matches!(c, '-' | '*' | '_' | '|')) {
             continue;
         }
-        let cleaned: String = line.chars().filter(|c| !matches!(c, '*' | '_' | '`' | '~')).collect();
+        let cleaned = Zeroizing::new(line.chars().filter(|c| !matches!(c, '*' | '_' | '`' | '~')).collect::<String>());
         if !out.is_empty() {
             out.push(' ');
         }
         out.push_str(&cleaned);
-        if out.chars().count() >= EXCERPT_CHARS {
-            break;
-        }
-    }
-    if out.chars().count() > EXCERPT_CHARS {
-        out = out.chars().take(EXCERPT_CHARS).collect::<String>() + "…";
     }
     out
+}
+
+/// Plain-text preview of the body.
+fn excerpt(body: &str) -> String {
+    let plain = plain_text(body);
+    match plain.char_indices().nth(EXCERPT_CHARS) {
+        Some((at, _)) => format!("{}…", &plain[..at]),
+        None => plain.to_string(),
+    }
 }
 
 #[cfg(test)]

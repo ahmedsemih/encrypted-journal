@@ -25,6 +25,12 @@ export interface Entry {
   body: string;
 }
 
+/** A full-text search match; `snippet` pieces flagged `true` are the matched text. */
+export interface SearchHit {
+  id: string;
+  snippet: [string, boolean][];
+}
+
 export type EntryInput = Pick<Entry, "id" | "title" | "date" | "tags" | "mood" | "favorite" | "body">;
 
 import type { Language } from "./i18n";

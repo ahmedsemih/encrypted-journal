@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { storedLanguage } from "./prefs";
-import type { AppStatus, Entry, EntryInput, EntryMeta, EntryTemplate, Settings } from "./types";
+import type { AppStatus, Entry, EntryInput, EntryMeta, EntryTemplate, SearchHit, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 
 export const api = {
@@ -29,7 +29,7 @@ export const api = {
   restoreEntry: (id: string) => invoke<EntryMeta>("restore_entry", { id }),
   purgeEntry: (id: string) => invoke<void>("purge_entry", { id }),
   emptyTrash: () => invoke<void>("empty_trash"),
-  searchEntries: (query: string) => invoke<string[]>("search_entries", { query }),
+  searchEntries: (query: string) => invoke<SearchHit[]>("search_entries", { query }),
 
   getSettings: async (): Promise<Settings> => ({
     ...DEFAULT_SETTINGS,

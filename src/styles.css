@@ -594,11 +594,99 @@ button.tag:hover {
 }
 .filter-bar {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
   align-items: center;
   padding: 0 14px 8px;
   font-size: 12px;
   color: var(--text-muted);
+}
+.filter-bar .link {
+  margin-left: auto;
+}
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  font-size: 16px;
+}
+.filter-toggle.open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.filter-toggle .count {
+  font-size: 11px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.filter-panel {
+  margin: 0 14px 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.filter-group h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.date-range input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tag-choices {
+  max-height: 96px;
+  overflow-y: auto;
+}
+.chip {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+.chip.mood {
+  font-size: 15px;
+  padding: 1px 8px;
+}
+.chip.active,
+.chip.active:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.filter-help {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.snippet mark {
+  background: rgba(255, 196, 0, 0.35);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
 }
 .entry-scroll {
   overflow-y: auto;
