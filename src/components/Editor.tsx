@@ -1,5 +1,6 @@
 import { KeyboardEvent, RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../api";
+import { api } from "../api";
+import { errorText, useI18n } from "../i18n";
 import { formatLong } from "../dates";
 import type { EditorView, Entry, EntryInput, EntryMeta, Settings } from "../types";
 import { MOODS } from "../types";
@@ -29,12 +30,15 @@ function isEmpty(d: EntryInput) {
   return !d.title.trim() && !d.body.trim() && d.tags.length === 0 && !d.mood && !d.favorite;
 }
 
-function formatTime(iso: string) {
+function formatTime(iso: string, locale: string) {
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? "" : d.toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" });
+  return isNaN(d.getTime()) ? "" : d.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
 export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onDiscard, flushRef }: Props) {
+  const { t, locale } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [draft, setDraft] = useState<EntryInput>(() => toInput(entry));
   const [view, setView] = useState<EditorView>(settings.defaultView);
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -64,7 +68,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
       setSaveState(dirtyRef.current ? "dirty" : "saved");
     } catch (e) {
       dirtyRef.current = true;
-      setSaveError(errorMessage(e));
+      setSaveError(errorText(tRef.current, e));
       setSaveState("error");
     }
   }, []);
@@ -120,7 +124,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
     const ta = textRef.current;
     if (!ta) return;
     if (view === "preview") setView("edit");
-    const r = applyFormat(draft.body, ta.selectionStart, ta.selectionEnd, kind);
+    const r = applyFormat(draft.body, ta.selectionStart, ta.selectionEnd, kind, t.placeholders);
     pendingSelection.current = [r.selStart, r.selEnd];
     update({ body: r.text });
   };
@@ -143,7 +147,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
     }
     if (e.key === "Tab") {
       e.preventDefault();
-      const r = applyFormat(draft.body, ta.selectionStart, ta.selectionEnd, e.shiftKey ? "outdent" : "indent");
+      const r = applyFormat(draft.body, ta.selectionStart, ta.selectionEnd, e.shiftKey ? "outdent" : "indent", t.placeholders);
       pendingSelection.current = [r.selStart, r.selEnd];
       update({ body: r.text });
       return;
@@ -161,10 +165,10 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
   const words = draft.body.split(/\s+/).filter(Boolean).length;
   const readMinutes = Math.max(1, Math.round(words / 200));
   const saveLabel: Record<SaveState, string> = {
-    saved: "Kaydedildi",
-    dirty: "Değişiklikler var…",
-    saving: "Kaydediliyor…",
-    error: `Kaydedilemedi: ${saveError ?? ""}`,
+    saved: t.editor.saved,
+    dirty: t.editor.dirty,
+    saving: t.editor.saving,
+    error: t.editor.saveFailed(saveError ?? ""),
   };
 
   return (
@@ -176,15 +180,15 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
             className="date-input"
             value={draft.date}
             onChange={(e) => e.target.value && update({ date: e.target.value })}
-            title={formatLong(draft.date)}
+            title={formatLong(draft.date, locale)}
           />
-          <div className="mood-picker" role="radiogroup" aria-label="Ruh hali">
+          <div className="mood-picker" role="radiogroup" aria-label={t.editor.mood}>
             {MOODS.map((m) => (
               <button
                 key={m.id}
                 type="button"
                 className={draft.mood === m.id ? "active" : ""}
-                title={m.label}
+                title={t.moods[m.id]}
                 aria-checked={draft.mood === m.id}
                 role="radio"
                 onClick={() => update({ mood: draft.mood === m.id ? null : m.id })}
@@ -197,7 +201,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
           <button
             type="button"
             className={`icon-btn star ${draft.favorite ? "on" : ""}`}
-            title={draft.favorite ? "Favorilerden çıkar" : "Favorilere ekle"}
+            title={draft.favorite ? t.editor.favRemove : t.editor.favAdd}
             onClick={() => update({ favorite: !draft.favorite })}
           >
             {draft.favorite ? "★" : "☆"}
@@ -205,14 +209,14 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
           <div className="segmented small">
             {(["edit", "split", "preview"] as const).map((v) => (
               <button key={v} type="button" className={view === v ? "active" : ""} onClick={() => setView(v)}>
-                {{ edit: "Yaz", split: "Bölünmüş", preview: "Önizle" }[v]}
+                {t.editor.views[v]}
               </button>
             ))}
           </div>
           <button
             type="button"
             className="icon-btn danger"
-            title="Kaydı sil"
+            title={t.editor.deleteEntry}
             onClick={async () => {
               doneRef.current = true;
               if (!(await onDelete(entry.id))) doneRef.current = false;
@@ -224,7 +228,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
         <input
           ref={titleRef}
           className="title-input"
-          placeholder="Başlık"
+          placeholder={t.editor.titlePlaceholder}
           value={draft.title}
           maxLength={200}
           onChange={(e) => update({ title: e.target.value })}
@@ -235,20 +239,20 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
             }
           }}
         />
-        <div className="editor-date-long">{formatLong(draft.date)}</div>
+        <div className="editor-date-long">{formatLong(draft.date, locale)}</div>
         <TagInput tags={draft.tags} suggestions={tagSuggestions} onChange={(tags) => update({ tags })} />
       </header>
 
       {view !== "preview" && (
         <div className="toolbar" role="toolbar">
-          {FORMATS.map((f) =>
+          {FORMATS.map((f, i) =>
             f.kind === "separator" ? (
-              <span key={f.label} className="toolbar-sep" />
+              <span key={`sep-${i}`} className="toolbar-sep" />
             ) : (
               <button
                 key={f.kind}
                 type="button"
-                title={f.shortcut ? `${f.label} (Ctrl+${f.shortcut.toUpperCase()})` : f.label}
+                title={f.shortcut ? `${t.formats[f.kind]} (Ctrl+${f.shortcut.toUpperCase()})` : t.formats[f.kind]}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => format(f.kind as FormatKind)}
               >
@@ -264,7 +268,7 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
           <textarea
             ref={textRef}
             className="body-input"
-            placeholder="Bugün neler oldu? (Markdown desteklenir)"
+            placeholder={t.editor.bodyPlaceholder}
             value={draft.body}
             spellCheck={settings.spellcheck}
             onChange={(e) => update({ body: e.target.value })}
@@ -274,17 +278,19 @@ export function Editor({ entry, settings, tagSuggestions, onSaved, onDelete, onD
         )}
         {view !== "edit" && (
           <div className="preview">
-            {draft.body.trim() ? <MarkdownView source={draft.body} /> : <p className="muted">Önizlenecek bir şey yok.</p>}
+            {draft.body.trim() ? <MarkdownView source={draft.body} /> : <p className="muted">{t.editor.nothingToPreview}</p>}
           </div>
         )}
       </div>
 
       <footer className="status-bar">
-        <span>{words} kelime</span>
-        <span>{draft.body.length} karakter</span>
-        <span>~{readMinutes} dk okuma</span>
+        <span>{t.editor.words(words)}</span>
+        <span>{t.editor.chars(draft.body.length)}</span>
+        <span>{t.editor.readTime(readMinutes)}</span>
         <span className="spacer" />
-        <span title={`Oluşturuldu: ${formatTime(entry.createdAt)}`}>Son düzenleme: {formatTime(updatedAt)}</span>
+        <span title={t.editor.created(formatTime(entry.createdAt, locale))}>
+          {t.editor.lastEdited(formatTime(updatedAt, locale))}
+        </span>
         <span className={`save-state ${saveState}`}>
           {saveState === "saved" ? "🔒 " : ""}
           {saveLabel[saveState]}

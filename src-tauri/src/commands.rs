@@ -27,7 +27,7 @@ pub struct SessionInfo {
 }
 
 fn with_session<T>(state: &AppState, f: impl FnOnce(&mut Session) -> AppResult<T>) -> AppResult<T> {
-    let mut guard = state.session.lock().map_err(|_| AppError::invalid("Uygulama durumu bozuk"))?;
+    let mut guard = state.session.lock().map_err(|_| AppError::Internal("poisoned state".into()))?;
     f(guard.as_mut().ok_or(AppError::Locked)?)
 }
 
@@ -38,12 +38,12 @@ fn current_username(state: &AppState) -> AppResult<String> {
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> AppResult<T> + Send + 'static) -> AppResult<T> {
     tauri::async_runtime::spawn_blocking(f)
         .await
-        .map_err(|e| AppError::invalid(e.to_string()))?
+        .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
 fn start_session(state: &AppState, session: Session) -> AppResult<SessionInfo> {
     let info = SessionInfo { username: session.username.clone() };
-    *state.session.lock().map_err(|_| AppError::invalid("Uygulama durumu bozuk"))? = Some(session);
+    *state.session.lock().map_err(|_| AppError::Internal("poisoned state".into()))? = Some(session);
     Ok(info)
 }
 
@@ -75,7 +75,7 @@ pub async fn login(state: State<'_, AppState>, username: String, password: Strin
 
 #[tauri::command]
 pub fn lock(state: State<'_, AppState>) -> AppResult<()> {
-    *state.session.lock().map_err(|_| AppError::invalid("Uygulama durumu bozuk"))? = None;
+    *state.session.lock().map_err(|_| AppError::Internal("poisoned state".into()))? = None;
     Ok(())
 }
 

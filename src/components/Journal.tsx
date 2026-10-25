@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, errorMessage } from "../api";
+import { api } from "../api";
+import { errorText, useI18n } from "../i18n";
 import { today } from "../dates";
 import type { Entry, EntryMeta, Settings } from "../types";
 import { Editor } from "./Editor";
@@ -36,6 +37,7 @@ function metaOf(e: Entry): EntryMeta {
 }
 
 export function Journal({ username, settings, onSettingsChange, onLock, onAccountDeleted }: Props) {
+  const { t } = useI18n();
   const [metas, setMetas] = useState<EntryMeta[]>([]);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [searchIds, setSearchIds] = useState<Set<string> | null>(null);
@@ -58,7 +60,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
         setMetas(list);
         setSelectedId((cur) => cur ?? list[0]?.id ?? null);
       })
-      .catch((e) => setError(errorMessage(e)));
+      .catch((e) => setError(errorText(t, e)));
   }, []);
 
   // Load the selected entry.
@@ -71,7 +73,7 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
     api
       .getEntry(selectedId)
       .then((e) => !cancelled && setEntry(e))
-      .catch((e) => !cancelled && setError(errorMessage(e)));
+      .catch((e) => !cancelled && setError(errorText(t, e)));
     return () => {
       cancelled = true;
     };
@@ -84,13 +86,13 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
       setSearchIds(null);
       return;
     }
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       api
         .searchEntries(q)
         .then((ids) => setSearchIds(new Set(ids)))
-        .catch((e) => setError(errorMessage(e)));
+        .catch((e) => setError(errorText(t, e)));
     }, 200);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [filters.query, metas]);
 
   const visible = useMemo(
@@ -128,9 +130,9 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
       setEntry(e);
       setSelectedId(e.id);
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorText(t, err));
     }
-  }, [flush, filters.day]);
+  }, [flush, filters.day, t]);
 
   const onSaved = useCallback((meta: EntryMeta) => {
     setMetas((prev) => sortMetas(prev.map((m) => (m.id === meta.id ? meta : m))));
@@ -143,11 +145,11 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
 
   const onDelete = useCallback(
     async (id: string): Promise<boolean> => {
-      const ok = await ask("Bu kayıt kalıcı olarak silinecek. Emin misiniz?", {
-        title: "Kaydı sil",
+      const ok = await ask(t.journal.deleteConfirm, {
+        title: t.journal.deleteTitle,
         kind: "warning",
-        okLabel: "Sil",
-        cancelLabel: "Vazgeç",
+        okLabel: t.journal.delete,
+        cancelLabel: t.cancel,
       });
       if (!ok) return false;
       try {
@@ -158,11 +160,11 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
         setSelectedId(next?.id ?? null);
         return true;
       } catch (err) {
-        setError(errorMessage(err));
+        setError(errorText(t, err));
         return false;
       }
     },
-    [visible, removeLocally],
+    [visible, removeLocally, t],
   );
 
   const onDiscard = useCallback(
@@ -273,10 +275,10 @@ export function Journal({ username, settings, onSettingsChange, onLock, onAccoun
         ) : (
           <div className="empty-state">
             <div className="empty-icon">📔</div>
-            <h2>{metas.length ? "Bir kayıt seçin" : "Günlüğünüz boş"}</h2>
-            <p className="muted">Bugün neler oldu? Yazmaya başlamak için yeni bir kayıt oluşturun.</p>
+            <h2>{metas.length ? t.journal.selectEntry : t.journal.emptyJournal}</h2>
+            <p className="muted">{t.journal.emptyHint}</p>
             <button className="primary" onClick={newEntry}>
-              Yeni kayıt <kbd>Ctrl+N</kbd>
+              {t.journal.newEntry} <kbd>Ctrl+N</kbd>
             </button>
           </div>
         )}

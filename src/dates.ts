@@ -13,8 +13,8 @@ export function parseISODate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
-export function formatLong(s: string): string {
-  return parseISODate(s).toLocaleDateString("tr-TR", {
+export function formatLong(s: string, locale: string): string {
+  return parseISODate(s).toLocaleDateString(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -22,8 +22,8 @@ export function formatLong(s: string): string {
   });
 }
 
-export function formatShort(s: string): string {
-  return parseISODate(s).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
+export function formatShort(s: string, locale: string): string {
+  return parseISODate(s).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function addDays(s: string, days: number): string {

@@ -1,25 +1,27 @@
 import { FormEvent, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, errorMessage } from "../api";
+import { api } from "../api";
+import { errorText, LANGUAGES, useI18n, type Language } from "../i18n";
 
 interface Props {
   hasUsers: boolean;
   onUnlocked: (username: string) => void;
   onUsersChanged: () => void;
+  onLanguage: (lang: Language) => void;
 }
 
-function passwordStrength(pw: string): { score: number; label: string } {
+function passwordStrength(pw: string): number {
   let score = 0;
   if (pw.length >= 8) score++;
   if (pw.length >= 12) score++;
-  if (/[a-zçğıöşü]/.test(pw) && /[A-ZÇĞİÖŞÜ]/.test(pw)) score++;
+  if (/\p{Ll}/u.test(pw) && /\p{Lu}/u.test(pw)) score++;
   if (/\d/.test(pw)) score++;
   if (/[^\p{L}\d]/u.test(pw)) score++;
-  const labels = ["Çok zayıf", "Zayıf", "Orta", "İyi", "Güçlü", "Çok güçlü"];
-  return { score, label: labels[score] };
+  return score;
 }
 
-export function AuthScreen({ hasUsers, onUnlocked, onUsersChanged }: Props) {
+export function AuthScreen({ hasUsers, onUnlocked, onUsersChanged, onLanguage }: Props) {
+  const { t, lang } = useI18n();
   const [mode, setMode] = useState<"login" | "register">(hasUsers ? "login" : "register");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +37,7 @@ export function AuthScreen({ hasUsers, onUnlocked, onUsersChanged }: Props) {
     e.preventDefault();
     setError(null);
     if (registering && password !== confirm) {
-      setError("Parolalar eşleşmiyor");
+      setError(t.auth.mismatch);
       return;
     }
     setBusy(true);
@@ -45,7 +47,7 @@ export function AuthScreen({ hasUsers, onUnlocked, onUsersChanged }: Props) {
       setConfirm("");
       onUnlocked(info.username);
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorText(t, err));
     } finally {
       setBusy(false);
     }
@@ -54,46 +56,49 @@ export function AuthScreen({ hasUsers, onUnlocked, onUsersChanged }: Props) {
   async function restore() {
     setError(null);
     setNotice(null);
-    const path = await open({ multiple: false, filters: [{ name: "Günlük yedeği", extensions: ["ejbackup", "json"] }] });
+    const path = await open({ multiple: false, filters: [{ name: t.backupFilter, extensions: ["ejbackup", "json"] }] });
     if (typeof path !== "string") return;
     try {
       await api.importBackup(path);
       setMode("login");
-      setNotice("Yedek geri yüklendi. Yedeği aldığınız andaki kullanıcı adı ve parolayla giriş yapın.");
+      setNotice(t.auth.restored);
       onUsersChanged();
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorText(t, err));
     }
   }
 
   return (
     <div className="auth">
+      <div className="lang-switch">
+        {LANGUAGES.map((l) => (
+          <button key={l.id} className={lang === l.id ? "active" : ""} onClick={() => onLanguage(l.id)} title={l.label}>
+            {l.id.toUpperCase()}
+          </button>
+        ))}
+      </div>
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-logo" aria-hidden>
           🔒
         </div>
-        <h1>Şifreli Günlük</h1>
-        <p className="muted">
-          {registering
-            ? "Yeni bir günlük oluşturun. Tüm kayıtlarınız parolanızdan türetilen anahtarla şifrelenir."
-            : "Günlüğünüzün kilidini açmak için giriş yapın."}
-        </p>
+        <h1>{t.appName}</h1>
+        <p className="muted">{registering ? t.auth.registerIntro : t.auth.loginIntro}</p>
 
         <div className="segmented" role="tablist">
           <button type="button" className={!registering ? "active" : ""} onClick={() => setMode("login")}>
-            Giriş yap
+            {t.auth.login}
           </button>
           <button type="button" className={registering ? "active" : ""} onClick={() => setMode("register")}>
-            Kayıt ol
+            {t.auth.register}
           </button>
         </div>
 
         <label className="field">
-          <span>Kullanıcı adı</span>
+          <span>{t.auth.username}</span>
           <input autoFocus value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
         </label>
         <label className="field">
-          <span>Parola</span>
+          <span>{t.auth.password}</span>
           <input
             type="password"
             value={password}
@@ -105,19 +110,17 @@ export function AuthScreen({ hasUsers, onUnlocked, onUsersChanged }: Props) {
         </label>
         {registering && (
           <>
-            <div className="strength" data-score={strength.score}>
+            <div className="strength" data-score={strength}>
               <div className="strength-bar">
-                <span style={{ width: `${(strength.score / 5) * 100}%` }} />
+                <span style={{ width: `${(strength / 5) * 100}%` }} />
               </div>
-              <small>{password ? strength.label : "En az 8 karakter"}</small>
+              <small>{password ? t.auth.strength[strength] : t.auth.minChars}</small>
             </div>
             <label className="field">
-              <span>Parola (tekrar)</span>
+              <span>{t.auth.passwordRepeat}</span>
               <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
             </label>
-            <p className="warning">
-              ⚠️ Parolanızı unutursanız kayıtlarınız <strong>kurtarılamaz</strong>. Parola hiçbir yerde saklanmaz.
-            </p>
+            <p className="warning">{t.auth.warning}</p>
           </>
         )}
 
@@ -125,11 +128,11 @@ export function AuthScreen({ hasUsers, onUnlocked, onUsersChanged }: Props) {
         {notice && <p className="notice">{notice}</p>}
 
         <button className="primary block" disabled={busy}>
-          {busy ? (registering ? "Kasa oluşturuluyor…" : "Kilit açılıyor…") : registering ? "Günlüğü oluştur" : "Kilidi aç"}
+          {busy ? (registering ? t.auth.creating : t.auth.unlocking) : registering ? t.auth.create : t.auth.unlock}
         </button>
 
         <button type="button" className="link" onClick={restore}>
-          Yedekten geri yükle
+          {t.auth.restore}
         </button>
       </form>
     </div>

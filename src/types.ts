@@ -25,6 +25,8 @@ export interface Entry {
 
 export type EntryInput = Pick<Entry, "id" | "title" | "date" | "tags" | "mood" | "favorite" | "body">;
 
+import type { Language } from "./i18n";
+
 export type Theme = "system" | "light" | "dark";
 export type EditorView = "edit" | "split" | "preview";
 
@@ -34,9 +36,10 @@ export interface Settings {
   fontSize: number;
   spellcheck: boolean;
   defaultView: EditorView;
+  language: Language;
 }
 
-export const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Omit<Settings, "language"> = {
   theme: "system",
   autoLockMinutes: 10,
   fontSize: 16,
@@ -50,11 +53,11 @@ export interface AppStatus {
 }
 
 export const MOODS = [
-  { id: "great", emoji: "😄", label: "Harika" },
-  { id: "good", emoji: "🙂", label: "İyi" },
-  { id: "okay", emoji: "😐", label: "Normal" },
-  { id: "bad", emoji: "😕", label: "Kötü" },
-  { id: "awful", emoji: "😢", label: "Berbat" },
+  { id: "great", emoji: "😄" },
+  { id: "good", emoji: "🙂" },
+  { id: "okay", emoji: "😐" },
+  { id: "bad", emoji: "😕" },
+  { id: "awful", emoji: "😢" },
 ] as const;
 
 export function moodEmoji(id: string | null): string | null {

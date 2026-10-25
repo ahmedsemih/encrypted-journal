@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useI18n } from "../i18n";
 
 interface Props {
   tags: string[];
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function TagInput({ tags, suggestions, onChange }: Props) {
+  const { t } = useI18n();
   const [value, setValue] = useState("");
   const listId = useId();
 
@@ -18,10 +20,10 @@ export function TagInput({ tags, suggestions, onChange }: Props) {
 
   return (
     <div className="tag-input">
-      {tags.map((t) => (
-        <span key={t} className="tag">
-          #{t}
-          <button type="button" aria-label={`${t} etiketini kaldır`} onClick={() => onChange(tags.filter((x) => x !== t))}>
+      {tags.map((tag) => (
+        <span key={tag} className="tag">
+          #{tag}
+          <button type="button" aria-label={t.editor.removeTag(tag)} onClick={() => onChange(tags.filter((x) => x !== tag))}>
             ×
           </button>
         </span>
@@ -29,7 +31,7 @@ export function TagInput({ tags, suggestions, onChange }: Props) {
       <input
         list={listId}
         value={value}
-        placeholder={tags.length ? "" : "Etiket ekle…"}
+        placeholder={tags.length ? "" : t.editor.addTag}
         onChange={(e) => {
           const v = e.target.value;
           if (v.endsWith(",")) add(v.slice(0, -1));

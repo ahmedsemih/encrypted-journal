@@ -16,6 +16,7 @@ Tauri 2 + React + TypeScript ile geliştirilmiş, uçtan uca şifreli, çapraz p
 - 📦 Şifreli tek dosya yedek alma / geri yükleme
 - 📤 Şifresiz Markdown olarak dışa aktarma (uyarı ile)
 - 🌗 Açık / koyu / sistem teması
+- 🌐 Türkçe / İngilizce arayüz (giriş ekranından veya Ayarlar > Görünüm'den)
 
 ### Kısayollar
 
@@ -102,6 +103,7 @@ cd src-tauri && cargo test     # backend testleri
 src/                   React arayüzü
   components/          Auth, Journal, Sidebar, Calendar, EntryList, Editor, Settings…
   markdown.ts          Editör metin dönüşümleri
+  i18n.tsx             Türkçe/İngilizce sözlükler; backend hata kodlarının çevirisi
 src-tauri/src/
   crypto.rs            Argon2id + XChaCha20-Poly1305
   entry.rs             Kayıt modeli, Markdown/front matter dönüşümü

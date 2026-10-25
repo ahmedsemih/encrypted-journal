@@ -19,28 +19,37 @@ export type FormatKind =
 
 interface FormatButton {
   kind: FormatKind | "separator";
-  label: string;
   icon?: string;
   shortcut?: string;
 }
 
 export const FORMATS: FormatButton[] = [
-  { kind: "heading", label: "Başlık", icon: "H" },
-  { kind: "bold", label: "Kalın", icon: "B", shortcut: "b" },
-  { kind: "italic", label: "İtalik", icon: "I", shortcut: "i" },
-  { kind: "strike", label: "Üstü çizili", icon: "S" },
-  { kind: "separator", label: "sep1" },
-  { kind: "bullet", label: "Madde listesi", icon: "•" },
-  { kind: "numbered", label: "Numaralı liste", icon: "1." },
-  { kind: "task", label: "Yapılacaklar", icon: "☐" },
-  { kind: "quote", label: "Alıntı", icon: "❝" },
-  { kind: "separator", label: "sep2" },
-  { kind: "code", label: "Satır içi kod", icon: "</>", shortcut: "e" },
-  { kind: "codeblock", label: "Kod bloğu", icon: "{ }" },
-  { kind: "link", label: "Bağlantı", icon: "🔗", shortcut: "k" },
-  { kind: "table", label: "Tablo", icon: "▦" },
-  { kind: "hr", label: "Ayraç", icon: "―" },
+  { kind: "heading", icon: "H" },
+  { kind: "bold", icon: "B", shortcut: "b" },
+  { kind: "italic", icon: "I", shortcut: "i" },
+  { kind: "strike", icon: "S" },
+  { kind: "separator" },
+  { kind: "bullet", icon: "•" },
+  { kind: "numbered", icon: "1." },
+  { kind: "task", icon: "☐" },
+  { kind: "quote", icon: "❝" },
+  { kind: "separator" },
+  { kind: "code", icon: "</>", shortcut: "e" },
+  { kind: "codeblock", icon: "{ }" },
+  { kind: "link", icon: "🔗", shortcut: "k" },
+  { kind: "table", icon: "▦" },
+  { kind: "hr", icon: "―" },
 ];
+
+/** Localized text inserted when formatting without a selection. */
+export interface Placeholders {
+  bold: string;
+  italic: string;
+  strike: string;
+  code: string;
+  link: string;
+  column: (n: number) => string;
+}
 
 export interface EditResult {
   text: string;
@@ -48,11 +57,11 @@ export interface EditResult {
   selEnd: number;
 }
 
-const WRAPS: Partial<Record<FormatKind, [string, string, string]>> = {
-  bold: ["**", "**", "kalın metin"],
-  italic: ["_", "_", "italik metin"],
-  strike: ["~~", "~~", "metin"],
-  code: ["`", "`", "kod"],
+const WRAPS: Partial<Record<FormatKind, [string, string, keyof Placeholders]>> = {
+  bold: ["**", "**", "bold"],
+  italic: ["_", "_", "italic"],
+  strike: ["~~", "~~", "strike"],
+  code: ["`", "`", "code"],
 };
 
 const PREFIXES: Partial<Record<FormatKind, string>> = {
@@ -85,12 +94,18 @@ function insert(text: string, start: number, end: number, snippet: string, selFr
   return { text: text.slice(0, start) + snippet + text.slice(end), selStart: start + selFrom, selEnd: start + selTo };
 }
 
-export function applyFormat(text: string, start: number, end: number, kind: FormatKind): EditResult {
+export function applyFormat(
+  text: string,
+  start: number,
+  end: number,
+  kind: FormatKind,
+  ph: Placeholders,
+): EditResult {
   const selected = text.slice(start, end);
 
   const wrap = WRAPS[kind];
   if (wrap) {
-    const [before, after, placeholder] = wrap;
+    const [before, after, phKey] = wrap;
     // Toggle off when the selection is already wrapped.
     if (text.slice(start - before.length, start) === before && text.slice(end, end + after.length) === after) {
       return {
@@ -99,7 +114,7 @@ export function applyFormat(text: string, start: number, end: number, kind: Form
         selEnd: end - before.length,
       };
     }
-    const inner = selected || placeholder;
+    const inner = selected || (ph[phKey] as string);
     return insert(text, start, end, before + inner + after, before.length, before.length + inner.length);
   }
 
@@ -121,13 +136,13 @@ export function applyFormat(text: string, start: number, end: number, kind: Form
     case "outdent":
       return replaceLines(text, start, end, (lines) => lines.map((l) => l.replace(/^ {1,2}|^\t/, "")));
     case "link": {
-      const label = selected || "bağlantı metni";
+      const label = selected || ph.link;
       const snippet = `[${label}](https://)`;
       const urlStart = label.length + 3;
       return insert(text, start, end, snippet, urlStart, urlStart + "https://".length);
     }
     case "codeblock": {
-      const inner = selected || "kod";
+      const inner = selected || ph.code;
       const lead = start > 0 && text[start - 1] !== "\n" ? "\n" : "";
       return insert(text, start, end, `${lead}\`\`\`\n${inner}\n\`\`\`\n`, lead.length + 4, lead.length + 4 + inner.length);
     }
@@ -136,9 +151,10 @@ export function applyFormat(text: string, start: number, end: number, kind: Form
       return insert(text, start, end, snippet, snippet.length, snippet.length);
     }
     case "table": {
-      const snippet = "\n| Sütun 1 | Sütun 2 |\n| --- | --- |\n| | |\n";
-      const at = snippet.indexOf("Sütun 1");
-      return insert(text, start, end, snippet, at, at + "Sütun 1".length);
+      const [c1, c2] = [ph.column(1), ph.column(2)];
+      const snippet = `\n| ${c1} | ${c2} |\n| --- | --- |\n| | |\n`;
+      const at = snippet.indexOf(c1);
+      return insert(text, start, end, snippet, at, at + c1.length);
     }
     default:
       return { text, selStart: start, selEnd: end };

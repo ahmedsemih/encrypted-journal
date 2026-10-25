@@ -78,14 +78,14 @@ pub struct Session {
 pub fn normalize_username(username: &str) -> AppResult<String> {
     let name = username.trim().to_lowercase();
     if name.is_empty() || name.chars().count() > 64 || name.chars().any(char::is_control) {
-        return Err(AppError::invalid("Kullanıcı adı 1-64 karakter olmalı"));
+        return Err(AppError::Invalid("invalidUsername"));
     }
     Ok(name)
 }
 
 fn validate_password(password: &str) -> AppResult<()> {
     if password.chars().count() < MIN_PASSWORD_CHARS {
-        return Err(AppError::invalid(format!("Parola en az {MIN_PASSWORD_CHARS} karakter olmalı")));
+        return Err(AppError::Invalid("weakPassword"));
     }
     Ok(())
 }
@@ -128,7 +128,7 @@ fn read_header(dir: &Path) -> AppResult<VaultHeader> {
     })?;
     let header: VaultHeader = serde_json::from_slice(&raw)?;
     if header.version > VAULT_VERSION {
-        return Err(AppError::invalid("Bu kasa daha yeni bir uygulama sürümüyle oluşturulmuş"));
+        return Err(AppError::Invalid("vaultTooNew"));
     }
     Ok(header)
 }
@@ -212,28 +212,28 @@ pub fn delete_account(root: &Path, username: &str, password: &str) -> AppResult<
 /// the username and password that were valid when the backup was taken.
 pub fn import_backup(root: &Path, path: &Path) -> AppResult<()> {
     let backup: Backup = serde_json::from_slice(&fs::read(path)?)
-        .map_err(|_| AppError::invalid("Geçerli bir yedek dosyası değil"))?;
+        .map_err(|_| AppError::Invalid("invalidBackup"))?;
     if backup.format != BACKUP_FORMAT || backup.version > VAULT_VERSION {
-        return Err(AppError::invalid("Desteklenmeyen yedek dosyası"));
+        return Err(AppError::Invalid("unsupportedBackup"));
     }
     if backup.user_id.len() != 64 || !backup.user_id.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err(AppError::invalid("Yedek dosyası bozuk"));
+        return Err(AppError::Invalid("corruptBackup"));
     }
     let mut files = Vec::with_capacity(backup.entries.len());
     for (id, data) in &backup.entries {
         entry::validate_id(id)?;
-        let blob = B64.decode(data).map_err(|_| AppError::invalid("Yedek dosyası bozuk"))?;
+        let blob = B64.decode(data).map_err(|_| AppError::Invalid("corruptBackup"))?;
         files.push((format!("{id}{ENTRY_SUFFIX}"), blob));
     }
     let settings = backup
         .settings
         .as_deref()
-        .map(|s| B64.decode(s).map_err(|_| AppError::invalid("Yedek dosyası bozuk")))
+        .map(|s| B64.decode(s).map_err(|_| AppError::Invalid("corruptBackup")))
         .transpose()?;
 
     let dir = root.join(USERS_DIR).join(&backup.user_id);
     if dir.join(VAULT_FILE).exists() {
-        return Err(AppError::invalid("Bu kullanıcı zaten mevcut. Önce mevcut hesabı silin."));
+        return Err(AppError::Invalid("backupUserExists"));
     }
     create_private_dir(&root.join(USERS_DIR))?;
     create_private_dir(&dir)?;
@@ -325,7 +325,7 @@ impl Session {
     /// sub-folder of `target`. Returns the folder that was created.
     pub fn export_markdown(&self, target: &Path) -> AppResult<PathBuf> {
         let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-        let out = target.join(format!("gunluk-disa-aktarim-{stamp}"));
+        let out = target.join(format!("journal-export-{stamp}"));
         fs::create_dir_all(&out)?;
         let mut used = std::collections::HashSet::new();
         let mut entries: Vec<&Entry> = self.entries.values().collect();

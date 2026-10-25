@@ -1,45 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage } from "./api";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { api } from "./api";
 import { AuthScreen } from "./components/AuthScreen";
 import { Journal } from "./components/Journal";
-import type { Settings, Theme } from "./types";
+import { errorText, I18nProvider, makeI18n, type Language } from "./i18n";
+import { rememberPrefs, storedLanguage, storedTheme } from "./prefs";
+import type { Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
-
-const THEME_KEY = "theme";
-
-function storedTheme(): Theme {
-  try {
-    const t = localStorage.getItem(THEME_KEY);
-    if (t === "light" || t === "dark" || t === "system") return t;
-  } catch {
-    /* storage unavailable */
-  }
-  return "system";
-}
-
-function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme;
-  try {
-    localStorage.setItem(THEME_KEY, theme);
-  } catch {
-    /* storage unavailable */
-  }
-}
 
 type Phase = { kind: "loading" } | { kind: "locked"; hasUsers: boolean } | { kind: "unlocked"; username: string };
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
-  const [settings, setSettings] = useState<Settings>({ ...DEFAULT_SETTINGS, theme: storedTheme() });
-  const [error, setError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings>(() => ({
+    ...DEFAULT_SETTINGS,
+    theme: storedTheme(),
+    language: storedLanguage(),
+  }));
+  const [error, setError] = useState<unknown>(null);
 
-  useEffect(() => applyTheme(settings.theme), [settings.theme]);
+  useEffect(() => {
+    const { theme, language } = settings;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.lang = language;
+    rememberPrefs(theme, language);
+    getCurrentWindow()
+      .setTitle(makeI18n(language).t.appName)
+      .catch(() => {});
+  }, [settings.theme, settings.language]);
 
   const unlock = useCallback(async (username: string) => {
     try {
       setSettings(await api.getSettings());
     } catch (e) {
-      setError(errorMessage(e));
+      setError(e);
     }
     setPhase({ kind: "unlocked", username });
   }, []);
@@ -53,7 +47,7 @@ export default function App() {
     api
       .appStatus()
       .then((s) => (s.username ? unlock(s.username) : setPhase({ kind: "locked", hasUsers: s.hasUsers })))
-      .catch((e) => setError(errorMessage(e)));
+      .catch(setError);
   }, [unlock]);
 
   const lock = useCallback(async () => {
@@ -66,19 +60,32 @@ export default function App() {
     await api.saveSettings(next);
   }, []);
 
+  // Before sign-in the language only lives in localStorage.
+  const setLanguage = useCallback((language: Language) => setSettings((s) => ({ ...s, language })), []);
+
+  const { t } = makeI18n(settings.language);
+  let content;
   if (phase.kind === "loading") {
-    return <div className="splash">{error ?? "Yükleniyor…"}</div>;
+    content = <div className="splash">{error ? errorText(t, error) : t.loading}</div>;
+  } else if (phase.kind === "locked") {
+    content = (
+      <AuthScreen
+        hasUsers={phase.hasUsers}
+        onUnlocked={unlock}
+        onUsersChanged={showLocked}
+        onLanguage={setLanguage}
+      />
+    );
+  } else {
+    content = (
+      <Journal
+        username={phase.username}
+        settings={settings}
+        onSettingsChange={updateSettings}
+        onLock={lock}
+        onAccountDeleted={showLocked}
+      />
+    );
   }
-  if (phase.kind === "locked") {
-    return <AuthScreen hasUsers={phase.hasUsers} onUnlocked={unlock} onUsersChanged={showLocked} />;
-  }
-  return (
-    <Journal
-      username={phase.username}
-      settings={settings}
-      onSettingsChange={updateSettings}
-      onLock={lock}
-      onAccountDeleted={showLocked}
-    />
-  );
+  return <I18nProvider lang={settings.language}>{content}</I18nProvider>;
 }

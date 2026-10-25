@@ -77,13 +77,13 @@ pub fn now() -> String {
 pub fn validate_date(date: &str) -> AppResult<()> {
     NaiveDate::parse_from_str(date, "%Y-%m-%d")
         .map(|_| ())
-        .map_err(|_| AppError::invalid("Geçersiz tarih"))
+        .map_err(|_| AppError::Invalid("invalidDate"))
 }
 
 pub fn validate_id(id: &str) -> AppResult<()> {
     uuid::Uuid::parse_str(id)
         .map(|_| ())
-        .map_err(|_| AppError::invalid("Geçersiz kayıt kimliği"))
+        .map_err(|_| AppError::Invalid("invalidId"))
 }
 
 fn normalize_tags(tags: &[String]) -> Vec<String> {
@@ -174,7 +174,7 @@ impl Entry {
     }
 
     pub fn from_markdown(id: &str, text: &str) -> AppResult<Self> {
-        let bad = || AppError::invalid("Bozuk günlük kaydı");
+        let bad = || AppError::Invalid("corruptEntry");
         let rest = text.strip_prefix("---\n").ok_or_else(bad)?;
         let end = rest.find("\n---\n").ok_or_else(bad)?;
         let header = &rest[..end];

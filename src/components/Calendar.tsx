@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toISODate, today } from "../dates";
+import { useI18n } from "../i18n";
 
 interface Props {
   /** Days that have at least one entry. */
@@ -8,9 +9,8 @@ interface Props {
   onSelect: (day: string | null) => void;
 }
 
-const WEEKDAYS = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"];
-
 export function Calendar({ marked, selected, onSelect }: Props) {
+  const { t, locale } = useI18n();
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -31,25 +31,25 @@ export function Calendar({ marked, selected, onSelect }: Props) {
   return (
     <div className="calendar">
       <div className="calendar-head">
-        <button className="icon-btn" onClick={() => shift(-1)} aria-label="Önceki ay">
+        <button className="icon-btn" onClick={() => shift(-1)} aria-label={t.calendar.prev}>
           ‹
         </button>
         <button
           className="calendar-title"
-          title="Bu aya dön"
+          title={t.calendar.thisMonth}
           onClick={() => {
             const d = new Date();
             setCursor(new Date(d.getFullYear(), d.getMonth(), 1));
           }}
         >
-          {cursor.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
+          {cursor.toLocaleDateString(locale, { month: "long", year: "numeric" })}
         </button>
-        <button className="icon-btn" onClick={() => shift(1)} aria-label="Sonraki ay">
+        <button className="icon-btn" onClick={() => shift(1)} aria-label={t.calendar.next}>
           ›
         </button>
       </div>
       <div className="calendar-grid">
-        {WEEKDAYS.map((w) => (
+        {t.calendar.weekdays.map((w) => (
           <span key={w} className="weekday">
             {w}
           </span>

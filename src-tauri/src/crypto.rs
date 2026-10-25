@@ -60,7 +60,7 @@ impl KdfParams {
 
 pub fn derive_key(password: &str, kdf: &KdfParams) -> AppResult<SecretKey> {
     if kdf.algorithm != "argon2id" {
-        return Err(AppError::invalid("Desteklenmeyen anahtar türetme algoritması"));
+        return Err(AppError::Invalid("unsupportedKdf"));
     }
     let salt = B64.decode(&kdf.salt).map_err(|_| AppError::Crypto)?;
     let params =

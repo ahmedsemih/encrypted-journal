@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { storedLanguage } from "./prefs";
 import type { AppStatus, Entry, EntryInput, EntryMeta, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 
@@ -23,16 +24,10 @@ export const api = {
 
   getSettings: async (): Promise<Settings> => ({
     ...DEFAULT_SETTINGS,
+    language: storedLanguage(),
     ...(await invoke<Partial<Settings>>("get_settings")),
   }),
   saveSettings: (settings: Settings) => invoke<void>("save_settings", { settings }),
   exportMarkdown: (dir: string) => invoke<string>("export_markdown", { dir }),
   exportBackup: (path: string) => invoke<void>("export_backup", { path }),
 };
-
-/** Tauri rejects with the serialized AppError string. */
-export function errorMessage(err: unknown): string {
-  if (typeof err === "string") return err;
-  if (err instanceof Error) return err.message;
-  return "Beklenmeyen bir hata oluştu";
-}

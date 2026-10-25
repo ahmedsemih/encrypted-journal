@@ -1,0 +1,422 @@
+import { createContext, ReactNode, useContext, useMemo } from "react";
+import type { FormatKind } from "./markdown";
+
+export type Language = "tr" | "en";
+
+export const LANGUAGES: { id: Language; label: string }[] = [
+  { id: "tr", label: "Türkçe" },
+  { id: "en", label: "English" },
+];
+
+const tr = {
+  appName: "Şifreli Günlük",
+  loading: "Yükleniyor…",
+  cancel: "Vazgeç",
+  close: "Kapat",
+  untitled: "Başlıksız",
+  backupFilter: "Günlük yedeği",
+
+  auth: {
+    registerIntro: "Yeni bir günlük oluşturun. Tüm kayıtlarınız parolanızdan türetilen anahtarla şifrelenir.",
+    loginIntro: "Günlüğünüzün kilidini açmak için giriş yapın.",
+    login: "Giriş yap",
+    register: "Kayıt ol",
+    username: "Kullanıcı adı",
+    password: "Parola",
+    passwordRepeat: "Parola (tekrar)",
+    minChars: "En az 8 karakter",
+    strength: ["Çok zayıf", "Zayıf", "Orta", "İyi", "Güçlü", "Çok güçlü"],
+    warning: "⚠️ Parolanızı unutursanız kayıtlarınız kurtarılamaz. Parola hiçbir yerde saklanmaz.",
+    mismatch: "Parolalar eşleşmiyor",
+    creating: "Kasa oluşturuluyor…",
+    unlocking: "Kilit açılıyor…",
+    create: "Günlüğü oluştur",
+    unlock: "Kilidi aç",
+    restore: "Yedekten geri yükle",
+    restored: "Yedek geri yüklendi. Yedeği aldığınız andaki kullanıcı adı ve parolayla giriş yapın.",
+  },
+
+  journal: {
+    deleteConfirm: "Bu kayıt kalıcı olarak silinecek. Emin misiniz?",
+    deleteTitle: "Kaydı sil",
+    delete: "Sil",
+    selectEntry: "Bir kayıt seçin",
+    emptyJournal: "Günlüğünüz boş",
+    emptyHint: "Bugün neler oldu? Yazmaya başlamak için yeni bir kayıt oluşturun.",
+    newEntry: "Yeni kayıt",
+  },
+
+  editor: {
+    mood: "Ruh hali",
+    favAdd: "Favorilere ekle",
+    favRemove: "Favorilerden çıkar",
+    views: { edit: "Yaz", split: "Bölünmüş", preview: "Önizle" },
+    deleteEntry: "Kaydı sil",
+    titlePlaceholder: "Başlık",
+    bodyPlaceholder: "Bugün neler oldu? (Markdown desteklenir)",
+    nothingToPreview: "Önizlenecek bir şey yok.",
+    words: (n: number) => `${n} kelime`,
+    chars: (n: number) => `${n} karakter`,
+    readTime: (n: number) => `~${n} dk okuma`,
+    lastEdited: (s: string) => `Son düzenleme: ${s}`,
+    created: (s: string) => `Oluşturuldu: ${s}`,
+    saved: "Kaydedildi",
+    dirty: "Değişiklikler var…",
+    saving: "Kaydediliyor…",
+    saveFailed: (e: string) => `Kaydedilemedi: ${e}`,
+    addTag: "Etiket ekle…",
+    removeTag: (t: string) => `${t} etiketini kaldır`,
+  },
+
+  formats: {
+    heading: "Başlık",
+    bold: "Kalın",
+    italic: "İtalik",
+    strike: "Üstü çizili",
+    bullet: "Madde listesi",
+    numbered: "Numaralı liste",
+    task: "Yapılacaklar",
+    quote: "Alıntı",
+    code: "Satır içi kod",
+    codeblock: "Kod bloğu",
+    link: "Bağlantı",
+    table: "Tablo",
+    hr: "Ayraç",
+    indent: "Girinti",
+    outdent: "Girintiyi azalt",
+  } satisfies Record<FormatKind, string>,
+
+  placeholders: {
+    bold: "kalın metin",
+    italic: "italik metin",
+    strike: "metin",
+    code: "kod",
+    link: "bağlantı metni",
+    column: (n: number) => `Sütun ${n}`,
+  },
+
+  list: {
+    search: "Ara…  (Ctrl+F)",
+    newEntryShortcut: "Yeni kayıt (Ctrl+N)",
+    count: (shown: number, total: number) => `${shown} / ${total} kayıt`,
+    clear: "Temizle",
+    noMatch: "Eşleşen kayıt yok.",
+    noEntries: "Henüz kayıt yok.",
+  },
+
+  calendar: {
+    weekdays: ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"],
+    prev: "Önceki ay",
+    next: "Sonraki ay",
+    thisMonth: "Bu aya dön",
+  },
+
+  sidebar: {
+    settings: "Ayarlar (Ctrl+,)",
+    lock: "Kilitle (Ctrl+L)",
+    newEntry: "✎ Yeni kayıt",
+    all: "📚 Tüm kayıtlar",
+    favorites: "★ Favoriler",
+    tags: "Etiketler",
+    onThisDay: "Geçmişte bugün",
+    streak: "gün seri",
+    thisMonth: "bu ay",
+    words: "kelime",
+  },
+
+  moods: { great: "Harika", good: "İyi", okay: "Normal", bad: "Kötü", awful: "Berbat" } as Record<string, string>,
+
+  settings: {
+    title: "Ayarlar",
+    tabs: { appearance: "Görünüm", security: "Güvenlik", data: "Veri" },
+    language: "Dil",
+    theme: "Tema",
+    themes: { system: "Sistem", light: "Açık", dark: "Koyu" },
+    fontSize: "Yazı boyutu",
+    defaultView: "Varsayılan görünüm",
+    spellcheck: "Yazım denetimi",
+    autoLock: "Otomatik kilit",
+    autoLockOff: "Kapalı",
+    autoLockAfter: (n: number) => `${n} dk hareketsizlikten sonra`,
+    changePassword: "Parolayı değiştir",
+    currentPassword: "Mevcut parola",
+    newPassword: "Yeni parola (en az 8 karakter)",
+    newPasswordRepeat: "Yeni parola (tekrar)",
+    working: "İşleniyor…",
+    passwordMismatch: "Yeni parolalar eşleşmiyor",
+    passwordChanged: "Parola değiştirildi.",
+    cryptoInfo:
+      "Kayıtlar Argon2id ile parolanızdan türetilen anahtarla korunan rastgele bir 256-bit anahtarla, XChaCha20-Poly1305 kullanılarak şifrelenir.",
+    backupTitle: "Şifreli yedek",
+    backupInfo: "Tüm günlüğü şifreli tek bir dosyaya kaydeder. Başka bir bilgisayara taşımak için idealdir.",
+    backupButton: "Yedek al",
+    backupDialogTitle: "Şifreli yedeği kaydet",
+    backupFileName: "gunluk-yedek",
+    backupDone: "Şifreli yedek oluşturuldu. Geri yüklemek için giriş ekranındaki “Yedekten geri yükle” seçeneğini kullanın.",
+    exportTitle: "Markdown olarak dışa aktar",
+    exportInfo: "Her kaydı şifresiz bir .md dosyası olarak seçtiğiniz klasöre yazar.",
+    exportButton: "Dışa aktar",
+    exportWarning:
+      "Dışa aktarılan dosyalar ŞİFRESİZ düz markdown olacaktır. Bu dosyalara erişen herkes günlüğünüzü okuyabilir. Devam edilsin mi?",
+    exportWarningTitle: "Şifresiz dışa aktarım",
+    continue: "Devam et",
+    exportPickDir: "Dışa aktarma klasörünü seçin",
+    exportDone: (path: string) => `Kayıtlar dışa aktarıldı: ${path}`,
+    deleteTitle: "Hesabı sil",
+    deleteInfo: "Hesabınızı ve tüm kayıtlarınızı bu bilgisayardan kalıcı olarak siler.",
+    deletePassword: "Parolanız",
+    deleteConfirm: (u: string) => `“${u}” hesabı ve TÜM kayıtları kalıcı olarak silinecek. Bu işlem geri alınamaz.`,
+    deleteForever: "Kalıcı olarak sil",
+  },
+
+  errors: {
+    invalidCredentials: "Kullanıcı adı veya parola hatalı",
+    userExists: "Bu kullanıcı adı zaten kayıtlı",
+    locked: "Günlük kilitli, lütfen tekrar giriş yapın",
+    notFound: "Kayıt bulunamadı",
+    crypto: "Şifre çözme başarısız: veri bozuk veya anahtar hatalı",
+    invalidDate: "Geçersiz tarih",
+    invalidId: "Geçersiz kayıt kimliği",
+    corruptEntry: "Bozuk günlük kaydı",
+    unsupportedKdf: "Desteklenmeyen anahtar türetme algoritması",
+    invalidUsername: "Kullanıcı adı 1-64 karakter olmalı",
+    weakPassword: "Parola en az 8 karakter olmalı",
+    vaultTooNew: "Bu kasa daha yeni bir uygulama sürümüyle oluşturulmuş",
+    invalidBackup: "Geçerli bir yedek dosyası değil",
+    unsupportedBackup: "Desteklenmeyen yedek dosyası",
+    corruptBackup: "Yedek dosyası bozuk",
+    backupUserExists: "Bu kullanıcı zaten mevcut. Önce mevcut hesabı silin.",
+    io: "Dosya hatası",
+    data: "Veri hatası",
+    internal: "Dahili hata",
+    unknown: "Beklenmeyen bir hata oluştu",
+  } as Record<string, string>,
+};
+
+export type Dict = typeof tr;
+
+const en: Dict = {
+  appName: "Encrypted Journal",
+  loading: "Loading…",
+  cancel: "Cancel",
+  close: "Close",
+  untitled: "Untitled",
+  backupFilter: "Journal backup",
+
+  auth: {
+    registerIntro: "Create a new journal. Every entry is encrypted with a key derived from your password.",
+    loginIntro: "Sign in to unlock your journal.",
+    login: "Sign in",
+    register: "Sign up",
+    username: "Username",
+    password: "Password",
+    passwordRepeat: "Repeat password",
+    minChars: "At least 8 characters",
+    strength: ["Very weak", "Weak", "Fair", "Good", "Strong", "Very strong"],
+    warning: "⚠️ If you forget your password your entries cannot be recovered. The password is never stored.",
+    mismatch: "Passwords do not match",
+    creating: "Creating vault…",
+    unlocking: "Unlocking…",
+    create: "Create journal",
+    unlock: "Unlock",
+    restore: "Restore from backup",
+    restored: "Backup restored. Sign in with the username and password you used when the backup was made.",
+  },
+
+  journal: {
+    deleteConfirm: "This entry will be permanently deleted. Are you sure?",
+    deleteTitle: "Delete entry",
+    delete: "Delete",
+    selectEntry: "Select an entry",
+    emptyJournal: "Your journal is empty",
+    emptyHint: "What happened today? Create a new entry to start writing.",
+    newEntry: "New entry",
+  },
+
+  editor: {
+    mood: "Mood",
+    favAdd: "Add to favorites",
+    favRemove: "Remove from favorites",
+    views: { edit: "Write", split: "Split", preview: "Preview" },
+    deleteEntry: "Delete entry",
+    titlePlaceholder: "Title",
+    bodyPlaceholder: "What happened today? (Markdown supported)",
+    nothingToPreview: "Nothing to preview.",
+    words: (n) => `${n} ${n === 1 ? "word" : "words"}`,
+    chars: (n) => `${n} ${n === 1 ? "character" : "characters"}`,
+    readTime: (n) => `~${n} min read`,
+    lastEdited: (s) => `Last edited: ${s}`,
+    created: (s) => `Created: ${s}`,
+    saved: "Saved",
+    dirty: "Unsaved changes…",
+    saving: "Saving…",
+    saveFailed: (e) => `Could not save: ${e}`,
+    addTag: "Add tag…",
+    removeTag: (t) => `Remove tag ${t}`,
+  },
+
+  formats: {
+    heading: "Heading",
+    bold: "Bold",
+    italic: "Italic",
+    strike: "Strikethrough",
+    bullet: "Bulleted list",
+    numbered: "Numbered list",
+    task: "Checklist",
+    quote: "Quote",
+    code: "Inline code",
+    codeblock: "Code block",
+    link: "Link",
+    table: "Table",
+    hr: "Divider",
+    indent: "Indent",
+    outdent: "Outdent",
+  },
+
+  placeholders: {
+    bold: "bold text",
+    italic: "italic text",
+    strike: "text",
+    code: "code",
+    link: "link text",
+    column: (n) => `Column ${n}`,
+  },
+
+  list: {
+    search: "Search…  (Ctrl+F)",
+    newEntryShortcut: "New entry (Ctrl+N)",
+    count: (shown, total) => `${shown} / ${total} entries`,
+    clear: "Clear",
+    noMatch: "No matching entries.",
+    noEntries: "No entries yet.",
+  },
+
+  calendar: {
+    weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+    prev: "Previous month",
+    next: "Next month",
+    thisMonth: "Back to this month",
+  },
+
+  sidebar: {
+    settings: "Settings (Ctrl+,)",
+    lock: "Lock (Ctrl+L)",
+    newEntry: "✎ New entry",
+    all: "📚 All entries",
+    favorites: "★ Favorites",
+    tags: "Tags",
+    onThisDay: "On this day",
+    streak: "day streak",
+    thisMonth: "this month",
+    words: "words",
+  },
+
+  moods: { great: "Great", good: "Good", okay: "Okay", bad: "Bad", awful: "Awful" },
+
+  settings: {
+    title: "Settings",
+    tabs: { appearance: "Appearance", security: "Security", data: "Data" },
+    language: "Language",
+    theme: "Theme",
+    themes: { system: "System", light: "Light", dark: "Dark" },
+    fontSize: "Font size",
+    defaultView: "Default view",
+    spellcheck: "Spell check",
+    autoLock: "Auto-lock",
+    autoLockOff: "Off",
+    autoLockAfter: (n) => `After ${n} min of inactivity`,
+    changePassword: "Change password",
+    currentPassword: "Current password",
+    newPassword: "New password (at least 8 characters)",
+    newPasswordRepeat: "Repeat new password",
+    working: "Working…",
+    passwordMismatch: "New passwords do not match",
+    passwordChanged: "Password changed.",
+    cryptoInfo:
+      "Entries are encrypted with XChaCha20-Poly1305 using a random 256-bit key, which is protected by a key derived from your password with Argon2id.",
+    backupTitle: "Encrypted backup",
+    backupInfo: "Saves the whole journal into a single encrypted file. Ideal for moving to another computer.",
+    backupButton: "Back up",
+    backupDialogTitle: "Save encrypted backup",
+    backupFileName: "journal-backup",
+    backupDone: "Encrypted backup created. To restore it, use “Restore from backup” on the sign-in screen.",
+    exportTitle: "Export as Markdown",
+    exportInfo: "Writes every entry as an unencrypted .md file into the folder you choose.",
+    exportButton: "Export",
+    exportWarning:
+      "Exported files will be UNENCRYPTED plain markdown. Anyone with access to them can read your journal. Continue?",
+    exportWarningTitle: "Unencrypted export",
+    continue: "Continue",
+    exportPickDir: "Choose export folder",
+    exportDone: (path) => `Entries exported to: ${path}`,
+    deleteTitle: "Delete account",
+    deleteInfo: "Permanently removes your account and all entries from this computer.",
+    deletePassword: "Your password",
+    deleteConfirm: (u) => `The account “${u}” and ALL of its entries will be permanently deleted. This cannot be undone.`,
+    deleteForever: "Delete permanently",
+  },
+
+  errors: {
+    invalidCredentials: "Invalid username or password",
+    userExists: "This username is already registered",
+    locked: "The journal is locked, please sign in again",
+    notFound: "Entry not found",
+    crypto: "Decryption failed: data is corrupt or the key is wrong",
+    invalidDate: "Invalid date",
+    invalidId: "Invalid entry id",
+    corruptEntry: "Corrupt journal entry",
+    unsupportedKdf: "Unsupported key derivation algorithm",
+    invalidUsername: "Username must be 1-64 characters",
+    weakPassword: "Password must be at least 8 characters",
+    vaultTooNew: "This vault was created by a newer version of the app",
+    invalidBackup: "Not a valid backup file",
+    unsupportedBackup: "Unsupported backup file",
+    corruptBackup: "The backup file is corrupt",
+    backupUserExists: "This user already exists. Delete the existing account first.",
+    io: "File error",
+    data: "Data error",
+    internal: "Internal error",
+    unknown: "An unexpected error occurred",
+  },
+};
+
+const DICTS: Record<Language, Dict> = { tr, en };
+const LOCALES: Record<Language, string> = { tr: "tr-TR", en: "en-US" };
+
+export interface I18n {
+  lang: Language;
+  /** BCP 47 locale for date/number formatting. */
+  locale: string;
+  t: Dict;
+}
+
+export function makeI18n(lang: Language): I18n {
+  return { lang, locale: LOCALES[lang], t: DICTS[lang] };
+}
+
+export function detectLanguage(): Language {
+  return navigator.language?.toLowerCase().startsWith("tr") ? "tr" : "en";
+}
+
+const I18nContext = createContext<I18n>(makeI18n("tr"));
+
+export function I18nProvider({ lang, children }: { lang: Language; children: ReactNode }) {
+  const value = useMemo(() => makeI18n(lang), [lang]);
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+export function useI18n(): I18n {
+  return useContext(I18nContext);
+}
+
+/** Backend errors arrive as `{ code, detail }`; translate them. */
+export function errorText(t: Dict, err: unknown): string {
+  if (err && typeof err === "object" && "code" in err) {
+    const { code, detail } = err as { code: string; detail?: string | null };
+    const base = t.errors[code] ?? t.errors.unknown;
+    return detail ? `${base}: ${detail}` : base;
+  }
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message;
+  return t.errors.unknown;
+}

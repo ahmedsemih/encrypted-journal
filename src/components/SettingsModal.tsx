@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
-import { api, errorMessage } from "../api";
+import { api } from "../api";
 import { today } from "../dates";
+import { errorText, LANGUAGES, useI18n, type Language } from "../i18n";
 import type { EditorView, Settings, Theme } from "../types";
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 type Tab = "appearance" | "security" | "data";
 
 export function SettingsModal({ username, settings, onChange, onClose, onAccountDeleted, flush }: Props) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<Tab>("appearance");
   const [message, setMessage] = useState<{ kind: "error" | "notice"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,7 +31,7 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
   }, [onClose]);
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
-    onChange({ ...settings, [key]: value }).catch((e) => setMessage({ kind: "error", text: errorMessage(e) }));
+    onChange({ ...settings, [key]: value }).catch((e) => setMessage({ kind: "error", text: errorText(t, e) }));
 
   async function run(task: () => Promise<string | null>) {
     setBusy(true);
@@ -38,7 +40,7 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
       const text = await task();
       if (text) setMessage({ kind: "notice", text });
     } catch (e) {
-      setMessage({ kind: "error", text: errorMessage(e) });
+      setMessage({ kind: "error", text: errorText(t, e) });
     } finally {
       setBusy(false);
     }
@@ -47,51 +49,52 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
   const changePassword = (e: FormEvent) => {
     e.preventDefault();
     if (pw.next !== pw.confirm) {
-      setMessage({ kind: "error", text: "Yeni parolalar eşleşmiyor" });
+      setMessage({ kind: "error", text: t.settings.passwordMismatch });
       return;
     }
     run(async () => {
       await api.changePassword(pw.current, pw.next);
       setPw({ current: "", next: "", confirm: "" });
-      return "Parola değiştirildi.";
+      return t.settings.passwordChanged;
     });
   };
 
   const exportMarkdown = () =>
     run(async () => {
-      const ok = await ask(
-        "Dışa aktarılan dosyalar ŞİFRESİZ düz markdown olacaktır. Bu dosyalara erişen herkes günlüğünüzü okuyabilir. Devam edilsin mi?",
-        { title: "Şifresiz dışa aktarım", kind: "warning", okLabel: "Devam et", cancelLabel: "Vazgeç" },
-      );
+      const ok = await ask(t.settings.exportWarning, {
+        title: t.settings.exportWarningTitle,
+        kind: "warning",
+        okLabel: t.settings.continue,
+        cancelLabel: t.cancel,
+      });
       if (!ok) return null;
-      const dir = await open({ directory: true, title: "Dışa aktarma klasörünü seçin" });
+      const dir = await open({ directory: true, title: t.settings.exportPickDir });
       if (typeof dir !== "string") return null;
       await flush();
-      const out = await api.exportMarkdown(dir);
-      return `Kayıtlar dışa aktarıldı: ${out}`;
+      return t.settings.exportDone(await api.exportMarkdown(dir));
     });
 
   const exportBackup = () =>
     run(async () => {
       const path = await save({
-        title: "Şifreli yedeği kaydet",
-        defaultPath: `gunluk-yedek-${today()}.ejbackup`,
-        filters: [{ name: "Günlük yedeği", extensions: ["ejbackup"] }],
+        title: t.settings.backupDialogTitle,
+        defaultPath: `${t.settings.backupFileName}-${today()}.ejbackup`,
+        filters: [{ name: t.backupFilter, extensions: ["ejbackup"] }],
       });
       if (!path) return null;
       await flush();
       await api.exportBackup(path);
-      return "Şifreli yedek oluşturuldu. Geri yüklemek için giriş ekranındaki “Yedekten geri yükle” seçeneğini kullanın.";
+      return t.settings.backupDone;
     });
 
   const deleteAccount = (e: FormEvent) => {
     e.preventDefault();
     run(async () => {
-      const ok = await ask(`“${username}” hesabı ve TÜM kayıtları kalıcı olarak silinecek. Bu işlem geri alınamaz.`, {
-        title: "Hesabı sil",
+      const ok = await ask(t.settings.deleteConfirm(username), {
+        title: t.settings.deleteTitle,
         kind: "warning",
-        okLabel: "Kalıcı olarak sil",
-        cancelLabel: "Vazgeç",
+        okLabel: t.settings.deleteForever,
+        cancelLabel: t.cancel,
       });
       if (!ok) return null;
       await api.deleteAccount(deletePw);
@@ -102,21 +105,15 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label="Ayarlar">
+      <div className="modal" role="dialog" aria-modal="true" aria-label={t.settings.title}>
         <header className="modal-head">
-          <h2>Ayarlar</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Kapat">
+          <h2>{t.settings.title}</h2>
+          <button className="icon-btn" onClick={onClose} aria-label={t.close}>
             ✕
           </button>
         </header>
         <div className="segmented">
-          {(
-            [
-              ["appearance", "Görünüm"],
-              ["security", "Güvenlik"],
-              ["data", "Veri"],
-            ] as const
-          ).map(([id, label]) => (
+          {(["appearance", "security", "data"] as const).map((id) => (
             <button
               key={id}
               className={tab === id ? "active" : ""}
@@ -125,7 +122,7 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
                 setMessage(null);
               }}
             >
-              {label}
+              {t.settings.tabs[id]}
             </button>
           ))}
         </div>
@@ -134,15 +131,27 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
           {tab === "appearance" && (
             <>
               <label className="field row">
-                <span>Tema</span>
-                <select value={settings.theme} onChange={(e) => set("theme", e.target.value as Theme)}>
-                  <option value="system">Sistem</option>
-                  <option value="light">Açık</option>
-                  <option value="dark">Koyu</option>
+                <span>{t.settings.language}</span>
+                <select value={settings.language} onChange={(e) => set("language", e.target.value as Language)}>
+                  {LANGUAGES.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.label}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="field row">
-                <span>Yazı boyutu</span>
+                <span>{t.settings.theme}</span>
+                <select value={settings.theme} onChange={(e) => set("theme", e.target.value as Theme)}>
+                  {(["system", "light", "dark"] as const).map((th) => (
+                    <option key={th} value={th}>
+                      {t.settings.themes[th]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field row">
+                <span>{t.settings.fontSize}</span>
                 <select value={settings.fontSize} onChange={(e) => set("fontSize", Number(e.target.value))}>
                   {[14, 15, 16, 17, 18, 20, 22].map((n) => (
                     <option key={n} value={n}>
@@ -152,15 +161,17 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
                 </select>
               </label>
               <label className="field row">
-                <span>Varsayılan görünüm</span>
+                <span>{t.settings.defaultView}</span>
                 <select value={settings.defaultView} onChange={(e) => set("defaultView", e.target.value as EditorView)}>
-                  <option value="edit">Yaz</option>
-                  <option value="split">Bölünmüş</option>
-                  <option value="preview">Önizle</option>
+                  {(["edit", "split", "preview"] as const).map((v) => (
+                    <option key={v} value={v}>
+                      {t.editor.views[v]}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="field row checkbox">
-                <span>Yazım denetimi</span>
+                <span>{t.settings.spellcheck}</span>
                 <input type="checkbox" checked={settings.spellcheck} onChange={(e) => set("spellcheck", e.target.checked)} />
               </label>
             </>
@@ -169,29 +180,26 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
           {tab === "security" && (
             <>
               <label className="field row">
-                <span>Otomatik kilit</span>
+                <span>{t.settings.autoLock}</span>
                 <select value={settings.autoLockMinutes} onChange={(e) => set("autoLockMinutes", Number(e.target.value))}>
-                  <option value={0}>Kapalı</option>
+                  <option value={0}>{t.settings.autoLockOff}</option>
                   {[1, 5, 10, 15, 30, 60].map((n) => (
                     <option key={n} value={n}>
-                      {n} dk hareketsizlikten sonra
+                      {t.settings.autoLockAfter(n)}
                     </option>
                   ))}
                 </select>
               </label>
               <form className="sub-form" onSubmit={changePassword}>
-                <h3>Parolayı değiştir</h3>
-                <input type="password" placeholder="Mevcut parola" value={pw.current} autoComplete="current-password" onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
-                <input type="password" placeholder="Yeni parola (en az 8 karakter)" value={pw.next} autoComplete="new-password" minLength={8} onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
-                <input type="password" placeholder="Yeni parola (tekrar)" value={pw.confirm} autoComplete="new-password" onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
+                <h3>{t.settings.changePassword}</h3>
+                <input type="password" placeholder={t.settings.currentPassword} value={pw.current} autoComplete="current-password" onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
+                <input type="password" placeholder={t.settings.newPassword} value={pw.next} autoComplete="new-password" minLength={8} onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
+                <input type="password" placeholder={t.settings.newPasswordRepeat} value={pw.confirm} autoComplete="new-password" onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
                 <button className="primary" disabled={busy}>
-                  {busy ? "İşleniyor…" : "Parolayı değiştir"}
+                  {busy ? t.settings.working : t.settings.changePassword}
                 </button>
               </form>
-              <p className="muted small">
-                Kayıtlar Argon2id ile parolanızdan türetilen anahtarla korunan rastgele bir 256-bit anahtarla, XChaCha20-Poly1305
-                kullanılarak şifrelenir.
-              </p>
+              <p className="muted small">{t.settings.cryptoInfo}</p>
             </>
           )}
 
@@ -199,28 +207,28 @@ export function SettingsModal({ username, settings, onChange, onClose, onAccount
             <>
               <div className="action-row">
                 <div>
-                  <h3>Şifreli yedek</h3>
-                  <p className="muted small">Tüm günlüğü şifreli tek bir dosyaya kaydeder. Başka bir bilgisayara taşımak için idealdir.</p>
+                  <h3>{t.settings.backupTitle}</h3>
+                  <p className="muted small">{t.settings.backupInfo}</p>
                 </div>
                 <button disabled={busy} onClick={exportBackup}>
-                  Yedek al
+                  {t.settings.backupButton}
                 </button>
               </div>
               <div className="action-row">
                 <div>
-                  <h3>Markdown olarak dışa aktar</h3>
-                  <p className="muted small">Her kaydı şifresiz bir .md dosyası olarak seçtiğiniz klasöre yazar.</p>
+                  <h3>{t.settings.exportTitle}</h3>
+                  <p className="muted small">{t.settings.exportInfo}</p>
                 </div>
                 <button disabled={busy} onClick={exportMarkdown}>
-                  Dışa aktar
+                  {t.settings.exportButton}
                 </button>
               </div>
               <form className="sub-form danger-zone" onSubmit={deleteAccount}>
-                <h3>Hesabı sil</h3>
-                <p className="muted small">Hesabınızı ve tüm kayıtlarınızı bu bilgisayardan kalıcı olarak siler.</p>
-                <input type="password" placeholder="Parolanız" value={deletePw} onChange={(e) => setDeletePw(e.target.value)} required />
+                <h3>{t.settings.deleteTitle}</h3>
+                <p className="muted small">{t.settings.deleteInfo}</p>
+                <input type="password" placeholder={t.settings.deletePassword} value={deletePw} onChange={(e) => setDeletePw(e.target.value)} required />
                 <button className="danger" disabled={busy}>
-                  Hesabı sil
+                  {t.settings.deleteTitle}
                 </button>
               </form>
             </>
