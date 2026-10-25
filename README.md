@@ -41,6 +41,18 @@ A cross-platform desktop journal (Linux, Windows, macOS) built with Tauri 2, Rea
 - 🌗 Light, dark and system themes
 - 🌐 English and Turkish UI, switchable from the login screen or Settings > Appearance
 
+## Download
+
+Prebuilt Linux packages (RPM, DEB and AppImage) are attached to each [release](https://github.com/ahmedsemih/encrypted-journal/releases). Check them against `SHA256SUMS` with `sha256sum -c SHA256SUMS --ignore-missing`.
+
+```bash
+sudo dnf install ./encrypted-journal-0.1.0-1.x86_64.rpm     # Fedora, RHEL, openSUSE
+sudo apt install ./encrypted-journal_0.1.0_amd64.deb        # Debian, Ubuntu
+chmod +x encrypted-journal_0.1.0_amd64.AppImage && ./encrypted-journal_0.1.0_amd64.AppImage   # any distribution
+```
+
+There are no prebuilt packages for Windows or macOS yet. The app runs there too: build it from source as described under [Development](#development).
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
